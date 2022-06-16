@@ -13,6 +13,8 @@ from torchvision.transforms import Resize, Compose, ToTensor, Normalize
 import utils
 import pickle
 
+from scipy.stats import truncnorm
+
 
 def get_mgrid(sidelen, dim=2):
     '''Generates a flattened grid of (x,y,...) coordinates in a range of -1 to 1.'''
@@ -207,6 +209,93 @@ class ReachabilityAir3DSource(Dataset):
 
         # set up the initial value function
         boundary_values = torch.norm(coords[:, 1:3], dim=1, keepdim=True) - self.collisionR
+
+        # normalize the value function
+        norm_to = 0.02
+        mean = 0.25
+        var = 0.5
+
+        boundary_values = (boundary_values - mean)*norm_to/var
+        
+        if self.pretrain:
+            dirichlet_mask = torch.ones(coords.shape[0], 1) > 0
+        else:
+            # only enforce initial conditions around start_time
+            dirichlet_mask = (coords[:, 0, None] == start_time)
+
+        if self.pretrain:
+            self.pretrain_counter += 1
+        elif self.counter < self.full_count:
+            self.counter += 1
+
+        if self.pretrain and self.pretrain_counter == self.pretrain_iters:
+            self.pretrain = False
+
+        return {'coords': coords}, {'source_boundary_values': boundary_values, 'dirichlet_mask': dirichlet_mask}
+
+class ReachabilityHumanForward(Dataset):
+    def __init__(self, numpoints, 
+        collisionR=0.1, velocity=1.0, omega_max=1.1, 
+        pretrain=False, tMin=0.0, tMax=0.5, counter_start=0, counter_end=100e3, 
+        pretrain_iters=2000, angle_alpha=1.0, num_src_samples=1000, beta = 0.1, seed=0):
+        super().__init__()
+        torch.manual_seed(0)
+
+        self.pretrain = pretrain
+        self.numpoints = numpoints
+        
+        self.velocity = velocity
+        self.collisionR = collisionR
+
+        self.alpha_angle = angle_alpha * math.pi
+
+        self.num_states = 4 #states are x,y, startx, starty
+
+        self.tMax = tMax
+        self.tMin = tMin
+
+        self.N_src_samples = num_src_samples
+
+        self.pretrain_counter = 0
+        self.counter = counter_start
+        self.pretrain_iters = pretrain_iters
+        self.full_count = counter_end 
+
+        self.goal = torch.tensor([0.0, 0.0])
+        self.beta = beta
+        self.min = -3.14159/2
+        self.max = 3.14159/2
+        
+        self.theta_lower = truncnorm.ppf(0.05, -np.pi,np.pi, scale = 1/beta)
+        self.theta_upper = truncnorm.ppf(0.95, -np.pi,np.pi, scale = 1/beta)
+
+        # Set the seed
+        torch.manual_seed(seed)
+
+    def __len__(self):
+        return 1
+
+    def __getitem__(self, idx):
+        start_time = 0.  # time to apply  initial conditions
+
+        # uniformly sample domain and include coordinates where source is non-zero 
+        coords = torch.zeros(self.numpoints, self.num_states).uniform_(-1, 1)
+
+        if self.pretrain:
+            # only sample in time around the initial condition
+            time = torch.ones(self.numpoints, 1) * start_time
+            coords = torch.cat((time, coords), dim=1)
+        else:
+            # slowly grow time values from start time
+            # this currently assumes start_time = 0 and max time value is tMax
+            time = self.tMin + torch.zeros(self.numpoints, 1).uniform_(0, (self.tMax-self.tMin) * (self.counter / self.full_count))
+            coords = torch.cat((time, coords), dim=1)
+
+            # make sure we always have training samples at the initial time
+            coords[-self.N_src_samples:, 0] = start_time
+
+        # set up the initial value function
+        boundary_values = torch.norm(coords[:, 1:3]-coords[:,3:5], dim=1, keepdim=True) - self.collisionR
 
         # normalize the value function
         norm_to = 0.02

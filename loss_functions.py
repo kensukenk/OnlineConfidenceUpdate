@@ -6,7 +6,7 @@ import modules, utils
 
 import math
 import numpy as np
-
+from scipy.stats import vonmises
 
 def initialize_hji_MultiVehicleCollisionNE(dataset, minWith):
     # Initialize the loss function for the multi-vehicle collision avoidance problem
@@ -102,6 +102,82 @@ def initialize_hji_air3D(dataset, minWith):
         ham = ham - omega_max * torch.abs(dudx[..., 2])  # Disturbance component
         ham = ham + (velocity * (torch.cos(x_theta) - 1.0) * dudx[..., 0]) + (velocity * torch.sin(x_theta) * dudx[..., 1])  # Constant component
 
+        # If we are computing BRT then take min with zero
+        if minWith == 'zero':
+            ham = torch.clamp(ham, max=0.0)
+
+        if torch.all(dirichlet_mask):
+            diff_constraint_hom = torch.Tensor([0])
+        else:
+            diff_constraint_hom = dudt - ham
+            if minWith == 'target':
+                diff_constraint_hom = torch.max(diff_constraint_hom[:, :, None], y - source_boundary_values)
+
+        dirichlet = y[dirichlet_mask] - source_boundary_values[dirichlet_mask]
+
+        # A factor of 15e2 to make loss roughly equal
+        return {'dirichlet': torch.abs(dirichlet).sum() * batch_size / 15e2,
+                'diff_constraint_hom': torch.abs(diff_constraint_hom).sum()}
+
+    return hji_air3D
+
+def initialize_hji_human_forward(dataset, minWith):
+    # Initialize the loss function for the air3D problem
+    # The dynamics parameters
+    velocity = dataset.velocity
+    alpha_angle = dataset.alpha_angle
+    beta = dataset.beta
+    goal = dataset.goal
+    theta_lower = dataset.theta_lower
+    theta_upper = dataset.theta_upper
+    def hji_air3D(model_output, gt):
+        source_boundary_values = gt['source_boundary_values']
+        x = model_output['model_in']  # (meta_batch_size, num_points, 4)
+        y = model_output['model_out']  # (meta_batch_size, num_points, 1)
+        dirichlet_mask = gt['dirichlet_mask']
+        batch_size = x.shape[1]
+
+        du, status = diff_operators.jacobian(y, x)
+        dudt = du[..., 0, 0]
+        dudx = du[..., 0, 1:]
+
+        # human dynamics
+        # \dot x    = v \cos u
+        # \dot y    = v \sin u
+        # \dot x0   = 0
+        # \dot y0   = 0
+
+        u_star = torch.atan2(-goal[1]+x[...,2], -goal[0]+x[...,1]) # angle directly to goal
+        theta_min = u_star + theta_lower # min control in 90% confidence
+        theta_max = u_star + theta_upper # max control in 90% confidence
+        
+        
+        #theta_min = torch.where(theta_min < -np.pi, theta_min +2*np.pi, theta_min) #shifting to -pi to pi
+        #theta_max = torch.where(theta_max > np.pi, theta_max -2*np.pi, theta_max)
+        #temp = theta_min
+        #theta_min=torch.where(theta_min>theta_max, theta_max, theta_min) # reordering 
+        #theta_max=torch.where(theta_max==theta_min, temp, theta_max)
+        
+        
+
+        # control that maximizes the hamiltonians
+        control1 = torch.atan2(dudx[...,1], dudx[...,0])
+        control2 = torch.where(control1 > 0, control1 - np.pi, control1 + np.pi)
+
+        control1 = torch.where(torch.logical_and(control1 > theta_max, (control1 - theta_max) < np.pi), theta_max, control1)
+        control1 = torch.where(torch.logical_and(control1 > theta_max, (control1 - theta_max) > np.pi), theta_min, control1)
+        control1 = torch.where(torch.logical_and(control1 < theta_min, (theta_min - control1) > np.pi), theta_max, control1)
+        control1 = torch.where(torch.logical_and(control1 < theta_min, (theta_min - control1) < np.pi), theta_min, control1)
+        control2 = torch.where(torch.logical_and(control2 > theta_max, (control2 - theta_max) < np.pi), theta_max, control2)
+        control2 = torch.where(torch.logical_and(control2 > theta_max, (control2 - theta_max) > np.pi), theta_min, control2)
+        control2 = torch.where(torch.logical_and(control2 < theta_min, (theta_min - control2) > np.pi), theta_max, control2)
+        control2 = torch.where(torch.logical_and(control2 < theta_min, (theta_min - control2) < np.pi), theta_min, control2)
+        
+        ham = dudx[...,0]*velocity*(torch.cos(control1)) + dudx[...,1]*velocity*(torch.sin(control1))
+        ham2 = dudx[...,0]*velocity*(torch.cos(control2)) + dudx[...,1]*velocity*(torch.sin(control2))
+        ham = torch.where(ham2<ham, ham2, ham)
+        
+       
         # If we are computing BRT then take min with zero
         if minWith == 'zero':
             ham = torch.clamp(ham, max=0.0)
