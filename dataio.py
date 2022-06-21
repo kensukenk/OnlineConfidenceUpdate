@@ -237,7 +237,7 @@ class ReachabilityHumanForward(Dataset):
     def __init__(self, numpoints, 
         collisionR=0.1, velocity=1.0, omega_max=1.1, 
         pretrain=False, tMin=0.0, tMax=0.5, counter_start=0, counter_end=100e3, 
-        pretrain_iters=2000, angle_alpha=1.0, num_src_samples=1000, beta = 0.1, seed=0):
+        pretrain_iters=2000, angle_alpha=1.0, num_src_samples=1000, beta1 = 0.1, beta2 = 10, seed=0):
         super().__init__()
         torch.manual_seed(0)
 
@@ -249,7 +249,7 @@ class ReachabilityHumanForward(Dataset):
 
         self.alpha_angle = angle_alpha * math.pi
 
-        self.num_states = 4 #states are x,y, startx, starty
+        self.num_states = 5 #states are x,y, startx, starty, p
 
         self.tMax = tMax
         self.tMin = tMin
@@ -262,12 +262,10 @@ class ReachabilityHumanForward(Dataset):
         self.full_count = counter_end 
 
         self.goal = torch.tensor([0.0, 0.0])
-        self.beta = beta
-        self.min = -3.14159/2
-        self.max = 3.14159/2
+        self.beta1 = beta1
+        self.beta2 = beta2
         
-        self.theta_lower = truncnorm.ppf(0.05, -np.pi,np.pi, scale = 1/beta)
-        self.theta_upper = truncnorm.ppf(0.95, -np.pi,np.pi, scale = 1/beta)
+        
 
         # Set the seed
         torch.manual_seed(seed)

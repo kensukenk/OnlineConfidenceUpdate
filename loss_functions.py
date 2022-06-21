@@ -8,6 +8,12 @@ import math
 import numpy as np
 from scipy.stats import vonmises
 
+import sys
+import os
+sys.path.append( os.path.dirname( os.path.dirname( os.path.abspath(__file__) ) ) )
+from stats import *
+
+
 def initialize_hji_MultiVehicleCollisionNE(dataset, minWith):
     # Initialize the loss function for the multi-vehicle collision avoidance problem
     # The dynamics parameters
@@ -126,11 +132,25 @@ def initialize_hji_human_forward(dataset, minWith):
     # The dynamics parameters
     velocity = dataset.velocity
     alpha_angle = dataset.alpha_angle
-    beta = dataset.beta
+    beta1 = dataset.beta1
+    beta2 = dataset.beta2
     goal = dataset.goal
-    theta_lower = dataset.theta_lower
-    theta_upper = dataset.theta_upper
-    def hji_air3D(model_output, gt):
+
+    def phi(x,mu, sigsq):
+        return 0.5 * (1 + torch.erf((x-mu)/(sigsq*torch.sqrt(torch.tensor(2)))))
+
+    def phi_inv(x, mu, sigsq):
+        return mu + torch.sqrt(torch.tensor(2))*sigsq*torch.erfinv(2*x - 1)
+
+    def truncnorm_ppf(p, a,b, loc = 0, scale = 1):
+        phi_a = phi(a, loc,scale)  
+        phi_b = phi(b, loc,scale)
+        
+        input = phi_a + p*(phi_b - phi_a)
+
+        return phi_inv(input, loc,scale)
+    
+    def hji_human_forward(model_output, gt):
         source_boundary_values = gt['source_boundary_values']
         x = model_output['model_in']  # (meta_batch_size, num_points, 4)
         y = model_output['model_out']  # (meta_batch_size, num_points, 1)
@@ -146,32 +166,85 @@ def initialize_hji_human_forward(dataset, minWith):
         # \dot y    = v \sin u
         # \dot x0   = 0
         # \dot y0   = 0
-
+        # \dot p    = 0
+        
         u_star = torch.atan2(-goal[1]+x[...,2], -goal[0]+x[...,1]) # angle directly to goal
-        theta_min = u_star + theta_lower # min control in 90% confidence
-        theta_max = u_star + theta_upper # max control in 90% confidence
-        
-        
-        #theta_min = torch.where(theta_min < -np.pi, theta_min +2*np.pi, theta_min) #shifting to -pi to pi
-        #theta_max = torch.where(theta_max > np.pi, theta_max -2*np.pi, theta_max)
-        #temp = theta_min
-        #theta_min=torch.where(theta_min>theta_max, theta_max, theta_min) # reordering 
-        #theta_max=torch.where(theta_max==theta_min, temp, theta_max)
-        
-        
 
         # control that maximizes the hamiltonians
         control1 = torch.atan2(dudx[...,1], dudx[...,0])
         control2 = torch.where(control1 > 0, control1 - np.pi, control1 + np.pi)
+        
+        #beta =  torch.pow(x[...,5],2)*beta1 + torch.pow((1-x[...,5]), 2)*beta2
+        beta = x[...,5]*beta1 + (1-x[...,5])*beta2
+        # EXPERIMENT spread = np.pi - truncnorm_ppf(0.95,torch.tensor(-np.pi),torch.tensor(np.pi), loc = 0, scale = beta)
+        spread = np.pi - truncnorm_ppf(0.95,torch.tensor(-np.pi),torch.tensor(np.pi), loc = 0, scale = beta)
 
-        control1 = torch.where(torch.logical_and(control1 > theta_max, (control1 - theta_max) < np.pi), theta_max, control1)
-        control1 = torch.where(torch.logical_and(control1 > theta_max, (control1 - theta_max) > np.pi), theta_min, control1)
-        control1 = torch.where(torch.logical_and(control1 < theta_min, (theta_min - control1) > np.pi), theta_max, control1)
-        control1 = torch.where(torch.logical_and(control1 < theta_min, (theta_min - control1) < np.pi), theta_min, control1)
-        control2 = torch.where(torch.logical_and(control2 > theta_max, (control2 - theta_max) < np.pi), theta_max, control2)
-        control2 = torch.where(torch.logical_and(control2 > theta_max, (control2 - theta_max) > np.pi), theta_min, control2)
-        control2 = torch.where(torch.logical_and(control2 < theta_min, (theta_min - control2) > np.pi), theta_max, control2)
-        control2 = torch.where(torch.logical_and(control2 < theta_min, (theta_min - control2) < np.pi), theta_min, control2)
+        theta_min = u_star - spread
+        theta_max = u_star + spread
+        theta_max = torch.where(theta_max > np.pi, theta_max - 2*np.pi, theta_max)
+        theta_min = torch.where(theta_min < -np.pi, theta_min + 2*np.pi, theta_min)
+
+        temp = torch.clone(theta_min)
+        theta_min = torch.where(theta_min>theta_max, theta_max, theta_min)
+        theta_max = torch.where(theta_max == theta_min, temp, theta_max)
+
+
+        # case 1: spread > pi/2
+        #     then want to kill the smaller part of the circle
+        
+        midpt = u_star + np.pi
+
+        midpt = torch.where(midpt > np.pi, midpt - 2*np.pi, midpt)
+        midpt = torch.where(midpt < -np.pi, midpt + 2*np.pi, midpt)
+
+        # spread > pi/2 and midpt > theta max
+        control1 = torch.where(torch.logical_and(spread > np.pi/2, torch.logical_and(midpt > theta_max,torch.logical_and(control1 <= midpt, control1 > theta_max))), theta_max, control1)
+        control1 = torch.where(torch.logical_and(spread > np.pi/2, torch.logical_and(midpt > theta_max,torch.logical_or(control1 < theta_min, control1 >= midpt))), theta_min, control1)
+        control2 = torch.where(torch.logical_and(spread > np.pi/2, torch.logical_and(midpt > theta_max,torch.logical_and(control2 <= midpt, control2 > theta_max))), theta_max, control2)
+        control2 = torch.where(torch.logical_and(spread > np.pi/2, torch.logical_and(midpt > theta_max,torch.logical_or(control2 < theta_min, control2 >= midpt))), theta_min, control2)
+        # kill smaller side
+        
+        # spread > pi/2, midpt < theta_min
+        control1 = torch.where(torch.logical_and(spread > np.pi/2, torch.logical_and(midpt < theta_min,torch.logical_or(control1 <= midpt, control1 > theta_max))), theta_max, control1)
+        control1 = torch.where(torch.logical_and(spread > np.pi/2, torch.logical_and(midpt < theta_min,torch.logical_and(control1 < theta_min, control1 >= midpt))), theta_min, control1)
+        control2 = torch.where(torch.logical_and(spread > np.pi/2, torch.logical_and(midpt < theta_min,torch.logical_or(control2 <= midpt, control2 > theta_max))), theta_max, control2)
+        control2 = torch.where(torch.logical_and(spread > np.pi/2, torch.logical_and(midpt < theta_min,torch.logical_and(control2 < theta_min, control2 >= midpt))), theta_min, control2)
+            
+        # spread > pi/2, theta_min < midpt < theta_max
+        control1 = torch.where(torch.logical_and(spread > np.pi/2, torch.logical_and(torch.logical_and(midpt >= theta_min, midpt <= theta_max), torch.logical_and(control1 < theta_max, control1 >= midpt))), theta_max, control1)            
+        control1 = torch.where(torch.logical_and(spread > np.pi/2, torch.logical_and(torch.logical_and(midpt >= theta_min, midpt <= theta_max), torch.logical_and(control1 > theta_min, control1 <= midpt))), theta_min, control1)
+        control2 = torch.where(torch.logical_and(spread > np.pi/2, torch.logical_and(torch.logical_and(midpt >= theta_min, midpt <= theta_max), torch.logical_and(control2 < theta_max, control2 >= midpt))), theta_max, control2)
+        control2 = torch.where(torch.logical_and(spread > np.pi/2, torch.logical_and(torch.logical_and(midpt >= theta_min, midpt <= theta_max), torch.logical_and(control2 > theta_min, control2 <= midpt))), theta_min, control2)
+
+        # case 2: spread < pi/2
+        #     then want to kill the bigger part of the circle
+
+        # spread <= pi /2, midpt > 0 
+    
+        control1 = torch.where(torch.logical_and(spread <= np.pi/2, torch.logical_and(midpt> 0,torch.logical_and(control1 > theta_max, control1 <= midpt))), theta_max, control1)
+        control1 = torch.where(torch.logical_and(spread <= np.pi/2, torch.logical_and(midpt> 0,torch.logical_or(control1 < theta_min, control1 >= midpt))), theta_min, control1)
+        control2 = torch.where(torch.logical_and(spread <= np.pi/2, torch.logical_and(midpt> 0,torch.logical_and(control2 > theta_max, control2 <= midpt))), theta_max, control2)
+        control2 = torch.where(torch.logical_and(spread <= np.pi/2, torch.logical_and(midpt> 0,torch.logical_or(control2 < theta_min, control2 >= midpt))), theta_min, control2)
+
+        # spread <= pi/2, midpt < 0      
+        control1 = torch.where(torch.logical_and(spread <= np.pi/2, torch.logical_and(midpt< 0,torch.logical_or(control1 > theta_max, control1 <= midpt))), theta_max,control1)
+        control1 = torch.where(torch.logical_and(spread <= np.pi/2, torch.logical_and(midpt< 0,torch.logical_and(control1 < theta_min, control1 >= midpt))), theta_min,control1)
+        control2 = torch.where(torch.logical_and(spread <= np.pi/2, torch.logical_and(midpt< 0,torch.logical_or(control2 > theta_max, control2 <= midpt))), theta_max,control2)
+        control2 = torch.where(torch.logical_and(spread <= np.pi/2, torch.logical_and(midpt< 0,torch.logical_and(control2 < theta_min, control2 >= midpt))), theta_min,control2)
+            
+
+        # spread <= pi/2, midpt == 0        
+        control1 = torch.where(torch.logical_and(spread <= np.pi/2, torch.logical_and(midpt == 0, torch.logical_and(control1 < theta_max, control1 >= 0))), theta_max, control1)
+        control1 = torch.where(torch.logical_and(spread <= np.pi/2, torch.logical_and(midpt == 0, torch.logical_and(control1 > theta_min, control1 <=0))), theta_min, control1)
+        control2 = torch.where(torch.logical_and(spread <= np.pi/2, torch.logical_and(midpt == 0, torch.logical_and(control2 < theta_max, control2 >= 0))), theta_max, control2)
+        control2 = torch.where(torch.logical_and(spread <= np.pi/2, torch.logical_and(midpt == 0, torch.logical_and(control2 > theta_min, control2 <=0))), theta_min, control2)
+
+        # human dynamics
+        # \dot x    = v \cos u
+        # \dot y    = v \sin u
+        # \dot x0   = 0
+        # \dot y0   = 0
+        # \dot p    = 0
         
         ham = dudx[...,0]*velocity*(torch.cos(control1)) + dudx[...,1]*velocity*(torch.sin(control1))
         ham2 = dudx[...,0]*velocity*(torch.cos(control2)) + dudx[...,1]*velocity*(torch.sin(control2))
@@ -195,4 +268,4 @@ def initialize_hji_human_forward(dataset, minWith):
         return {'dirichlet': torch.abs(dirichlet).sum() * batch_size / 15e2,
                 'diff_constraint_hom': torch.abs(diff_constraint_hom).sum()}
 
-    return hji_air3D
+    return hji_human_forward

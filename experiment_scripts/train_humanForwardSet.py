@@ -48,7 +48,7 @@ p.add_argument('--num_src_samples', type=int, default=1000, required=False, help
 p.add_argument('--velocity', type=float, default=0.6, required=False, help='Speed of the dubins car')
 p.add_argument('--omega_max', type=float, default=1.1, required=False, help='Turn rate of the car')
 p.add_argument('--angle_alpha', type=float, default=1.0, required=False, help='Angle alpha coefficient.')
-p.add_argument('--collisionR', type=float, default=0.1, required=False, help='Collision radisu between vehicles')
+p.add_argument('--collisionR', type=float, default=0.2, required=False, help='Collision radisu between vehicles')
 p.add_argument('--minWith', type=str, default='none', required=False, choices=['none', 'zero', 'target'], help='BRS vs BRT computation')
 
 p.add_argument('--clip_grad', default=0.0, type=float, help='Clip gradient.')
@@ -60,7 +60,8 @@ p.add_argument('--seed', type=int, default=0, required=False, help='Seed for the
 p.add_argument('--checkpoint_path', default=None, help='Checkpoint to trained model.')
 p.add_argument('--checkpoint_toload', type=int, default=0, help='Checkpoint from which to restart the training.')
 p.add_argument('--beta', type=float, default=0.1, help='fixed confidence interval')
-
+p.add_argument('--beta1', type=float, default=0.1, help='fixed confidence interval')
+p.add_argument('--beta2', type=float, default=10, help='fixed confidence interval')
 opt = p.parse_args()
 
 # Set the source coordinates for the target set and the obstacle sets
@@ -76,12 +77,12 @@ dataset = dataio.ReachabilityHumanForward(numpoints=65000, collisionR=opt.collis
                                           tMax=opt.tMax, counter_start=opt.counter_start, counter_end=opt.counter_end,
                                           pretrain_iters=opt.pretrain_iters, seed=opt.seed,
                                           angle_alpha=opt.angle_alpha,
-                                          num_src_samples=opt.num_src_samples, beta = opt.beta)
+                                          num_src_samples=opt.num_src_samples, beta1 = opt.beta1, beta2 = opt.beta2)
 
 dataloader = DataLoader(dataset, shuffle=True, batch_size=opt.batch_size, pin_memory=True, num_workers=0)
 
 # in_features = num states + 1 (for time) + num_params
-model = modules.SingleBVPNet(in_features=5, out_features=1, type=opt.model, mode=opt.mode,
+model = modules.SingleBVPNet(in_features=6, out_features=1, type=opt.model, mode=opt.mode,
                              final_layer_factor=1., hidden_features=opt.num_nl, num_hidden_layers=opt.num_hl)
 
 
@@ -99,11 +100,11 @@ def val_fn(model, ckpt_dir, epoch):
   num_times = len(times)
 
   # xy slices to be plotted
-  starts = [[0.5,0.5],[-0.5,0.5],[0.5, -0.5], [-0.5,-0.5]]
-  num_starts = len(starts)
+  probs = [0.55, 0.65, 0.75, 0.85, 0.95]
+  num_probs = len(probs)
 
   # Create a figure
-  fig = plt.figure(figsize=(5*num_times, 5*num_starts))
+  fig = plt.figure(figsize=(5*num_times, 5*num_probs))
 
   # Get the meshgrid in the (x, y) coordinate
   sidelen = 200
@@ -112,11 +113,11 @@ def val_fn(model, ckpt_dir, epoch):
   # Start plotting the results
   for i in range(num_times):
     time_coords = torch.ones(mgrid_coords.shape[0], 1) * times[i]
-
-    for j in range(num_starts):
-      x_coords = torch.ones(mgrid_coords.shape[0], 1) * starts[j][0]
-      y_coords = torch.ones(mgrid_coords.shape[0], 1) * starts[j][1]
-      coords = torch.cat((time_coords, mgrid_coords, x_coords, y_coords), dim=1) 
+    x_coords = torch.ones(mgrid_coords.shape[0], 1) * -0.5
+    y_coords = torch.ones(mgrid_coords.shape[0], 1) * 0.5
+    for j in range(num_probs):
+      p_coords = torch.ones(mgrid_coords.shape[0], 1) * probs[j]
+      coords = torch.cat((time_coords, mgrid_coords, x_coords, y_coords, p_coords), dim=1) 
       model_in = {'coords': coords.cuda()}
       model_out = model(model_in)['model_out']
 
@@ -134,8 +135,8 @@ def val_fn(model, ckpt_dir, epoch):
       model_out = (model_out <= 0.001)*1.
 
       # Plot the actual data
-      ax = fig.add_subplot(num_times, num_starts, (j+1) + i*num_starts)
-      ax.set_title('t = %0.2f, x = %0.2f, y = %0.2f' % (times[i], starts[j][0], starts[j][1]))
+      ax = fig.add_subplot(num_times, num_probs, (j+1) + i*num_probs)
+      ax.set_title('t = %0.2f, p = %0.2f' % (times[i], probs[j]))
       s = ax.imshow(model_out.T, cmap='bwr', origin='lower', extent=(-1., 1., -1., 1.))
       plt.scatter(dataset.goal[0], dataset.goal[1])
       fig.colorbar(s) 
