@@ -177,7 +177,7 @@ def initialize_hji_human_forward(dataset, minWith):
         #beta =  torch.pow(x[...,5],2)*beta1 + torch.pow((1-x[...,5]), 2)*beta2
         beta = x[...,5]*beta1 + (1-x[...,5])*beta2
         # EXPERIMENT spread = np.pi - truncnorm_ppf(0.95,torch.tensor(-np.pi),torch.tensor(np.pi), loc = 0, scale = beta)
-        spread = np.pi - truncnorm_ppf(0.95,torch.tensor(-np.pi),torch.tensor(np.pi), loc = 0, scale = beta)
+        spread = truncnorm_ppf(0.95,torch.tensor(-np.pi),torch.tensor(np.pi), loc = 0, scale = beta)
 
         theta_min = u_star - spread
         theta_max = u_star + spread
