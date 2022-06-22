@@ -136,20 +136,51 @@ def initialize_hji_human_forward(dataset, minWith):
     beta2 = dataset.beta2
     goal = dataset.goal
 
-    def phi(x,mu, sigsq):
-        return 0.5 * (1 + torch.erf((x-mu)/(sigsq*torch.sqrt(torch.tensor(2)))))
-
-    def phi_inv(x, mu, sigsq):
-        return mu + torch.sqrt(torch.tensor(2))*sigsq*torch.erfinv(2*x - 1)
-
-    def truncnorm_ppf(p, a,b, loc = 0, scale = 1):
-        phi_a = phi(a, loc,scale)  
-        phi_b = phi(b, loc,scale)
-        
-        input = phi_a + p*(phi_b - phi_a)
-
-        return phi_inv(input, loc,scale)
     
+    def arcpoint(x,a,b,inner):
+        # a and b are the endpoints of the arc,
+        # inner denotes whether small arc(true) or big arc (false)
+        # returns true if x inside range of [a,b]
+
+        x,a,b = thetaParse(x,a,b)
+        
+        # a < x < b, b-a is smaller than pi
+        one = torch.logical_and(torch.logical_and(x < b, (b-a)< np.pi),x-a>0)
+        # b-a is larger than pi, x < a or x > b)
+        two = torch.logical_and((b-a) > np.pi, torch.logical_or(x<a, x>b))
+
+        case1 = torch.logical_and(inner,torch.logical_or(one,two))
+
+        return torch.logical_or(torch.logical_and(inner, case1), torch.logical_and(torch.logical_not(inner), torch.logical_not(case1)))
+        #if inner:
+        #    return torch.logical_and(inner,torch.logical_or(one,two))
+        #else
+        #    return torch.logical_and(torch.logical_not(inner),torch.logical_not(torch.logical_or(one,two)))
+
+    def pointDist(x,a,b):
+        # x is point out of range
+        # a is lower bound and b is upper bound
+        # return true if closer to a, false otherwise
+        x, a, b = thetaParse(x,a,b)
+        return torch.where(x<b/2, True, False)
+
+    def thetaParse(x,a,b):
+        #a = torch.where(a< -np.pi, a + 2*np.pi, a)
+        #a = torch.where(a> np.pi, a - 2*np.pi, a)
+        #b = torch.where(b< -np.pi, b + 2*np.pi, b)
+        #b = torch.where(b> np.pi, b - 2*np.pi, b)
+        x = x + 2*np.pi
+        a = a + 2*np.pi
+        b = b + 2*np.pi
+        b = torch.where(b<a, b+2*np.pi, b)
+        #temp = torch.clone(a)
+        #a = torch.where(b<a, b,a)
+        #b = torch.where(b==a, temp, b)
+        
+        #b = b - a
+        #x = x - a
+        return x, a, b
+
     def hji_human_forward(model_output, gt):
         source_boundary_values = gt['source_boundary_values']
         x = model_output['model_in']  # (meta_batch_size, num_points, 4)
@@ -177,67 +208,17 @@ def initialize_hji_human_forward(dataset, minWith):
         #beta =  torch.pow(x[...,5],2)*beta1 + torch.pow((1-x[...,5]), 2)*beta2
         beta = x[...,5]*beta1 + (1-x[...,5])*beta2
         # EXPERIMENT spread = np.pi - truncnorm_ppf(0.95,torch.tensor(-np.pi),torch.tensor(np.pi), loc = 0, scale = beta)
-        spread = np.pi - truncnorm_ppf(0.95,torch.tensor(-np.pi),torch.tensor(np.pi), loc = 0, scale = beta)
+        spread = truncnorm_ppf(0.95,torch.tensor(-np.pi),torch.tensor(np.pi), loc = 0, scale = beta)
 
-        theta_min = u_star - spread
-        theta_max = u_star + spread
-        theta_max = torch.where(theta_max > np.pi, theta_max - 2*np.pi, theta_max)
-        theta_min = torch.where(theta_min < -np.pi, theta_min + 2*np.pi, theta_min)
-
-        temp = torch.clone(theta_min)
-        theta_min = torch.where(theta_min>theta_max, theta_max, theta_min)
-        theta_max = torch.where(theta_max == theta_min, temp, theta_max)
-
-
-        # case 1: spread > pi/2
-        #     then want to kill the smaller part of the circle
+        umin = u_star - spread
+        umax = u_star + spread
         
-        midpt = u_star + np.pi
+        offset1 = torch.where(pointDist(control1,umin,umax), umin, umax)
+        control1 = torch.where(arcpoint(control1,umin,umax,inner = spread<np.pi/2), control1, offset1)
 
-        midpt = torch.where(midpt > np.pi, midpt - 2*np.pi, midpt)
-        midpt = torch.where(midpt < -np.pi, midpt + 2*np.pi, midpt)
-
-        # spread > pi/2 and midpt > theta max
-        control1 = torch.where(torch.logical_and(spread > np.pi/2, torch.logical_and(midpt > theta_max,torch.logical_and(control1 <= midpt, control1 > theta_max))), theta_max, control1)
-        control1 = torch.where(torch.logical_and(spread > np.pi/2, torch.logical_and(midpt > theta_max,torch.logical_or(control1 < theta_min, control1 >= midpt))), theta_min, control1)
-        control2 = torch.where(torch.logical_and(spread > np.pi/2, torch.logical_and(midpt > theta_max,torch.logical_and(control2 <= midpt, control2 > theta_max))), theta_max, control2)
-        control2 = torch.where(torch.logical_and(spread > np.pi/2, torch.logical_and(midpt > theta_max,torch.logical_or(control2 < theta_min, control2 >= midpt))), theta_min, control2)
-        # kill smaller side
-        
-        # spread > pi/2, midpt < theta_min
-        control1 = torch.where(torch.logical_and(spread > np.pi/2, torch.logical_and(midpt < theta_min,torch.logical_or(control1 <= midpt, control1 > theta_max))), theta_max, control1)
-        control1 = torch.where(torch.logical_and(spread > np.pi/2, torch.logical_and(midpt < theta_min,torch.logical_and(control1 < theta_min, control1 >= midpt))), theta_min, control1)
-        control2 = torch.where(torch.logical_and(spread > np.pi/2, torch.logical_and(midpt < theta_min,torch.logical_or(control2 <= midpt, control2 > theta_max))), theta_max, control2)
-        control2 = torch.where(torch.logical_and(spread > np.pi/2, torch.logical_and(midpt < theta_min,torch.logical_and(control2 < theta_min, control2 >= midpt))), theta_min, control2)
-            
-        # spread > pi/2, theta_min < midpt < theta_max
-        control1 = torch.where(torch.logical_and(spread > np.pi/2, torch.logical_and(torch.logical_and(midpt >= theta_min, midpt <= theta_max), torch.logical_and(control1 < theta_max, control1 >= midpt))), theta_max, control1)            
-        control1 = torch.where(torch.logical_and(spread > np.pi/2, torch.logical_and(torch.logical_and(midpt >= theta_min, midpt <= theta_max), torch.logical_and(control1 > theta_min, control1 <= midpt))), theta_min, control1)
-        control2 = torch.where(torch.logical_and(spread > np.pi/2, torch.logical_and(torch.logical_and(midpt >= theta_min, midpt <= theta_max), torch.logical_and(control2 < theta_max, control2 >= midpt))), theta_max, control2)
-        control2 = torch.where(torch.logical_and(spread > np.pi/2, torch.logical_and(torch.logical_and(midpt >= theta_min, midpt <= theta_max), torch.logical_and(control2 > theta_min, control2 <= midpt))), theta_min, control2)
-
-        # case 2: spread < pi/2
-        #     then want to kill the bigger part of the circle
-
-        # spread <= pi /2, midpt > 0 
-    
-        control1 = torch.where(torch.logical_and(spread <= np.pi/2, torch.logical_and(midpt> 0,torch.logical_and(control1 > theta_max, control1 <= midpt))), theta_max, control1)
-        control1 = torch.where(torch.logical_and(spread <= np.pi/2, torch.logical_and(midpt> 0,torch.logical_or(control1 < theta_min, control1 >= midpt))), theta_min, control1)
-        control2 = torch.where(torch.logical_and(spread <= np.pi/2, torch.logical_and(midpt> 0,torch.logical_and(control2 > theta_max, control2 <= midpt))), theta_max, control2)
-        control2 = torch.where(torch.logical_and(spread <= np.pi/2, torch.logical_and(midpt> 0,torch.logical_or(control2 < theta_min, control2 >= midpt))), theta_min, control2)
-
-        # spread <= pi/2, midpt < 0      
-        control1 = torch.where(torch.logical_and(spread <= np.pi/2, torch.logical_and(midpt< 0,torch.logical_or(control1 > theta_max, control1 <= midpt))), theta_max,control1)
-        control1 = torch.where(torch.logical_and(spread <= np.pi/2, torch.logical_and(midpt< 0,torch.logical_and(control1 < theta_min, control1 >= midpt))), theta_min,control1)
-        control2 = torch.where(torch.logical_and(spread <= np.pi/2, torch.logical_and(midpt< 0,torch.logical_or(control2 > theta_max, control2 <= midpt))), theta_max,control2)
-        control2 = torch.where(torch.logical_and(spread <= np.pi/2, torch.logical_and(midpt< 0,torch.logical_and(control2 < theta_min, control2 >= midpt))), theta_min,control2)
-            
-
-        # spread <= pi/2, midpt == 0        
-        control1 = torch.where(torch.logical_and(spread <= np.pi/2, torch.logical_and(midpt == 0, torch.logical_and(control1 < theta_max, control1 >= 0))), theta_max, control1)
-        control1 = torch.where(torch.logical_and(spread <= np.pi/2, torch.logical_and(midpt == 0, torch.logical_and(control1 > theta_min, control1 <=0))), theta_min, control1)
-        control2 = torch.where(torch.logical_and(spread <= np.pi/2, torch.logical_and(midpt == 0, torch.logical_and(control2 < theta_max, control2 >= 0))), theta_max, control2)
-        control2 = torch.where(torch.logical_and(spread <= np.pi/2, torch.logical_and(midpt == 0, torch.logical_and(control2 > theta_min, control2 <=0))), theta_min, control2)
+  
+        offset2 = torch.where(pointDist(control2,umin,umax), umin,umax)
+        control2 = torch.where(arcpoint(control2,umin,umax,inner = spread<np.pi/2), control2, offset2)
 
         # human dynamics
         # \dot x    = v \cos u
