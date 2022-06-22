@@ -168,7 +168,7 @@ def initialize_hji_human_forward(dataset, minWith):
         # \dot y0   = 0
         # \dot p    = 0
         
-        u_star = torch.atan2(-goal[1]+x[...,2], -goal[0]+x[...,1]) # angle directly to goal
+        u_star = torch.atan2(-goal[1]+x[...,4], -goal[0]+x[...,3]) # angle directly to goal
 
         # control that maximizes the hamiltonians
         control1 = torch.atan2(dudx[...,1], dudx[...,0])
