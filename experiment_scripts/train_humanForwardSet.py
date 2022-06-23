@@ -113,8 +113,8 @@ def val_fn(model, ckpt_dir, epoch):
   # Start plotting the results
   for i in range(num_times):
     time_coords = torch.ones(mgrid_coords.shape[0], 1) * times[i]
-    x_coords = torch.ones(mgrid_coords.shape[0], 1) * -0.5
-    y_coords = torch.ones(mgrid_coords.shape[0], 1) * 0.5
+    x_coords = torch.ones(mgrid_coords.shape[0], 1) * 0.5
+    y_coords = torch.ones(mgrid_coords.shape[0], 1) * 0.0
     for j in range(num_probs):
       p_coords = torch.ones(mgrid_coords.shape[0], 1) * probs[j]
       coords = torch.cat((time_coords, mgrid_coords, x_coords, y_coords, p_coords), dim=1) 

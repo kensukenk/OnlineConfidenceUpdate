@@ -1,10 +1,10 @@
 import numpy as np
 import torch
 def phi(x,mu, sig):
-  return 0.5 * (1 + torch.erf((x-mu)/(sig*torch.sqrt(torch.tensor(2)))))
+  return 0.5 * (1 + torch.erf((x-mu)/(sig*torch.sqrt(torch.tensor(2.)))))
 
 def phi_inv(x, mu, sig):
-  return mu + sig*torch.sqrt(torch.tensor(2))*torch.erfinv(2*x - 1)
+  return mu + sig*torch.sqrt(torch.tensor(2.))*torch.erfinv(2*x - 1)
 
 def normal_pdf(x, mu, sig):
   return (1/(sig*np.sqrt(2*np.pi)))*torch.exp(-0.5*(torch.pow((x-mu)/sig, 2)))
