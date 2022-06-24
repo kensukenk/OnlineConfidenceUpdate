@@ -5,7 +5,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import sys
 import os
-sys.path.append( os.path.dirname( os.path.dirname( os.path.abspath(__file__) ) ) )
+sys.path.append( os.path.dirname( os.path.dirname( os.path.realpath(__file__) ) ) )
 
 import modules, dataio
 from stats import *
@@ -13,7 +13,7 @@ from stats import *
 
 model = modules.SingleBVPNet(in_features=6, out_features=1, final_layer_factor=1.,hidden_features=512, num_hidden_layers=3)
 model.cuda()
-model.load_state_dict(torch.load('logs/betaVary_pre30_src10_epo110_rad015/checkpoints/model_final.pth'))
+model.load_state_dict(torch.load('../logs/betaVary_pre40_src15_epo150_rad01_betas01_2_remote_xy/checkpoints/model_final.pth'))
 
 
 num_steps = 10
@@ -25,7 +25,7 @@ bel_pos = torch.ones(2,num_steps+1)*0.5
 eps = 0.2
 
 beta1 = 0.1
-beta2 = 10
+beta2 = 2
 
 goal = torch.tensor ([0.,0.])
 x = torch.zeros(2,num_steps+1) # initial condition
@@ -40,18 +40,19 @@ for i in range(num_steps):
   u_star = torch.atan2(-x[1,i]+goal[1], -x[0,i]+ goal[0])
 
   if i > 3 and i < 6:
-    act = u_star + np.pi/2
+    act = u_star + np.pi
   else:
     act = u_star
-  act =u_star
+  #act = u_star
   obs = act - u_star
 
   pdf1 = truncnorm_pdf(obs,-np.pi,np.pi,loc=0, scale = beta1)
   pdf2 = truncnorm_pdf(obs,-np.pi,np.pi,loc=0, scale = beta2)
   
-  bel_pos[0,i+1] = (1-eps)*(pdf1*bel_neg[0,i] / (pdf1*bel_neg[0,i]+ pdf2*bel_neg[1,i])) + eps*(bel_neg[0,i]) 
-  bel_pos[1,i+1] = (1-eps)*(pdf2*bel_neg[1,i] / (pdf1*bel_neg[0,i]+ pdf2*bel_neg[1,i])) + eps*bel_neg[1,i]
-
+  #bel_pos[0,i+1] = (1-eps)*(pdf1*bel_neg[0,i] / (pdf1*bel_neg[0,i]+ pdf2*bel_neg[1,i])) + eps*(bel_neg[0,i]) 
+  #bel_pos[1,i+1] = (1-eps)*(pdf2*bel_neg[1,i] / (pdf1*bel_neg[0,i]+ pdf2*bel_neg[1,i])) + eps*bel_neg[1,i]
+  bel_pos[0,i+1] = (pdf1*bel_neg[0,i] / (pdf1*bel_neg[0,i]+ pdf2*bel_neg[1,i])) 
+  bel_pos[1,i+1] = (pdf2*bel_neg[1,i] / (pdf1*bel_neg[0,i]+ pdf2*bel_neg[1,i])) 
   x[0,i+1] = x[0,i] + vel*torch.cos(act)*dt
   x[1,i+1] = x[1,i] + vel*torch.sin(act)*dt
 bel_neg[:,-1] = (1-eps)*bel_pos[:,-1] + eps*bel_neg[:,0]
@@ -66,7 +67,7 @@ mgrid_coords = dataio.get_mgrid(sidelen)
 
 # Start plotting the results
 for i in range(num_steps):
-  time_coords = torch.ones(mgrid_coords.shape[0], 1) * 0.2
+  time_coords = torch.ones(mgrid_coords.shape[0], 1) * 0.7
   x_coords = torch.ones(mgrid_coords.shape[0], 1) * x[0,i]
   y_coords = torch.ones(mgrid_coords.shape[0], 1) * x[1,i]
 

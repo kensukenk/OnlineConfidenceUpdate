@@ -12,7 +12,7 @@ import sys
 import os
 sys.path.append( os.path.dirname( os.path.dirname( os.path.abspath(__file__) ) ) )
 from stats import *
-
+from anglehelper import *
 
 def initialize_hji_MultiVehicleCollisionNE(dataset, minWith):
     # Initialize the loss function for the multi-vehicle collision avoidance problem
@@ -136,76 +136,6 @@ def initialize_hji_human_forward(dataset, minWith):
     beta2 = dataset.beta2
     goal = dataset.goal
 
-    
-    def arcpoint(x,a,b,inner):
-        # a and b are the endpoints of the arc,
-        # inner denotes whether small arc(true) or big arc (false)
-        # returns true if x inside range of [a,b]
-
-        x,a,b = thetaParse(x,a,b)
-        
-        # a < x < b, b-a is smaller than pi
-        one_in = torch.logical_and(torch.logical_and(x < b, (b-a)< np.pi),x-a>0)
-        # b-a is larger than pi, x < a or x > b)
-        two_in = torch.logical_and((b-a) > np.pi, torch.logical_or(x<a, x>b))
-        
-        # checking periodicity
-        three_in = torch.logical_and(x < a, (x + 2*np.pi) < b)
-        four_in = torch.logical_and(x > b, (x - 2*np.pi) > a)  
-
-
-        # a < x < b, b-a is greater than pi
-        one_out = torch.logical_and(torch.logical_and(x < b, (b-a)> np.pi),x-a>0)
-
-        # b-a is larger than pi, x < a or x > b)
-        two_out = torch.logical_and((b-a) < np.pi, torch.logical_or(x<a, x>b))
-        # checking periodicity
-        three_out = torch.logical_and(x < a, (x + 2*np.pi) < (b)) 
-        four_out = torch.logical_and(x > b, (x - 2*np.pi) > (a))
-
-        case1 = torch.logical_or(torch.logical_or(torch.logical_or(one_in, two_in), three_in),four_in)
-        case2 = torch.logical_or(torch.logical_or(torch.logical_or(one_out, two_out), three_out),four_out)
-
-        return torch.where(inner, case1, case2)
-       
-    def pointDist(x,a,b):
-        # x is point out of range
-        # a is lower bound and b is upper bound
-        # return true if closer to a, false otherwise
-        x, a, b = thetaParse(x,a,b)
-        x = x% (2*np.pi)
-        a = a% (2*np.pi)
-        b = b% (2*np.pi)
-
-        x_a1 = torch.abs(x - a)
-        x_b1 = torch.abs(x - b)
-        x_a2 = 2*np.pi - x_a1
-        x_b2 = 2*np.pi - x_b1
-
-        x_a = torch.where(x_a1<x_a2, x_a1, x_a2)
-        x_b = torch.where(x_b1<x_b2, x_b1, x_b2)
-
-        
-        return torch.where(x_a < x_b, True, False)
-  
-
-    def thetaParse(x,a,b):
-        #a = torch.where(a< -np.pi, a + 2*np.pi, a)
-        #a = torch.where(a> np.pi, a - 2*np.pi, a)
-        #b = torch.where(b< -np.pi, b + 2*np.pi, b)
-        #b = torch.where(b> np.pi, b - 2*np.pi, b)
-        x = x + 2*np.pi
-        a = a + 2*np.pi
-        b = b + 2*np.pi
-        b = torch.where(b<a, b+2*np.pi, b)
-        #temp = torch.clone(a)
-        #a = torch.where(b<a, b,a)
-        #b = torch.where(b==a, temp, b)
-        
-        #b = b - a
-        #x = x - a
-        return x, a, b
- 
     def hji_human_forward(model_output, gt):
         source_boundary_values = gt['source_boundary_values']
         x = model_output['model_in']  # (meta_batch_size, num_points, 5)
@@ -224,7 +154,7 @@ def initialize_hji_human_forward(dataset, minWith):
         # \dot y0   = 0
         # \dot p    = 0
         
-        u_star = torch.atan2(-goal[1]+x[...,2], -goal[0]+x[...,1]) # angle directly to goal
+        u_star = torch.atan2(goal[1]-x[...,2], goal[0]-x[...,1]) # angle directly to goal
 
         # control that maximizes the hamiltonians
         control1 = torch.atan2(dudx[...,1], dudx[...,0])
@@ -252,8 +182,8 @@ def initialize_hji_human_forward(dataset, minWith):
         # \dot y0   = 0
         # \dot p    = 0
         
-        ham = dudx[...,0]*velocity*(torch.cos(control1)) + dudx[...,1]*velocity*(torch.sin(control1))
-        ham2 = dudx[...,0]*velocity*(torch.cos(control2)) + dudx[...,1]*velocity*(torch.sin(control2))
+        ham = -dudx[...,0]*velocity*(torch.cos(control1)) - dudx[...,1]*velocity*(torch.sin(control1))
+        ham2 = -dudx[...,0]*velocity*(torch.cos(control2)) - dudx[...,1]*velocity*(torch.sin(control2))
         ham = torch.where(ham2<ham, ham2, ham)
         
        
@@ -275,3 +205,94 @@ def initialize_hji_human_forward(dataset, minWith):
                 'diff_constraint_hom': torch.abs(diff_constraint_hom).sum()}
 
     return hji_human_forward
+
+
+def initialize_hji_human_robot_pe(dataset, minWith):
+    # Initialize the loss function for the air3D problem
+    # The dynamics parameters
+    velocity = dataset.velocity
+    alpha_angle = dataset.alpha_angle
+    beta1 = dataset.beta1
+    beta2 = dataset.beta2
+    goal = dataset.goal
+    omega_max = dataset.omega_max
+    p = dataset.p
+
+
+    def hji_human_robot_pe(model_output, gt):
+        source_boundary_values = gt['source_boundary_values']
+        x = model_output['model_in']  # (meta_batch_size, num_points, 5)
+        y = model_output['model_out']  # (meta_batch_size, num_points, 1)
+        dirichlet_mask = gt['dirichlet_mask']
+        batch_size = x.shape[1]
+
+        du, status = diff_operators.jacobian(y, x)
+        dudt = du[..., 0, 0]
+        dudx = du[..., 0, 1:]
+
+        x_theta = x[..., 3] * 1.0
+
+        # Scale the costate for theta appropriately to align with the range of [-pi, pi]
+        dudx[..., 2] = dudx[..., 2] / alpha_angle
+        # Scale the coordinates
+        x_theta = alpha_angle * x_theta
+
+        
+        u_star = torch.atan2(goal[1]-x[...,5], goal[0]-x[...,4]) # angle directly to goal
+        beta = p*beta1 + (1-p)*beta2
+        spread = truncnorm_ppf(0.95,torch.tensor(-np.pi),torch.tensor(np.pi), loc = 0, scale = beta)
+        umin = u_star - spread
+        umax = u_star + spread
+        
+        inner = torch.where(spread < np.pi/2, True, False)
+        
+        # human dynamics
+        # \dot x_r    = v \cos z_r
+        # \dot y_r    = v \sin z_r
+        # \dot z_r    = u_r
+        # \dot x_h    = v \cos u_h
+        # \dot y_h    = v \sin u_h
+        
+
+        # control that maximizes the hamiltonians
+        control1 = torch.atan2(dudx[...,4], dudx[...,3])
+        control2 = torch.where(control1 > 0, control1 - np.pi, control1 + np.pi)
+        
+        
+        offset1 = torch.where(pointDist(control1,umin,umax), umin, umax)
+        control1 = torch.where(arcpoint(control1,umin,umax,inner = inner), control1, offset1)
+
+  
+        offset2 = torch.where(pointDist(control2,umin,umax), umin,umax)
+        control2 = torch.where(arcpoint(control2,umin,umax,inner = inner), control2, offset2)
+
+        
+
+
+        
+        ham1 = dudx[...,3]*velocity*(torch.cos(control1)) + dudx[...,4]*velocity*(torch.sin(control1))
+        ham2 = dudx[...,3]*velocity*(torch.cos(control2)) + dudx[...,4]*velocity*(torch.sin(control2))
+        ham = torch.where(ham2<ham1, ham2, ham1) # minimizing control by pursuer
+        ham = ham + omega_max*torch.abs(dudx[...,2]) # maximizing control by evader
+        ham = ham + dudx[...,0]*velocity*torch.cos(x_theta) + dudx[...,1]*velocity*torch.sin(x_theta) # constant terms
+
+        
+       
+        # If we are computing BRT then take min with zero
+        if minWith == 'zero':
+            ham = torch.clamp(ham, max=0.0)
+
+        if torch.all(dirichlet_mask):
+            diff_constraint_hom = torch.Tensor([0])
+        else:
+            diff_constraint_hom = dudt - ham
+            if minWith == 'target':
+                diff_constraint_hom = torch.max(diff_constraint_hom[:, :, None], y - source_boundary_values)
+
+        dirichlet = y[dirichlet_mask] - source_boundary_values[dirichlet_mask]
+
+        # A factor of 15e2 to make loss roughly equal
+        return {'dirichlet': torch.abs(dirichlet).sum() * batch_size / 15e2,
+                'diff_constraint_hom': torch.abs(diff_constraint_hom).sum()}
+
+    return hji_human_robot_pe
