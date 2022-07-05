@@ -1,15 +1,31 @@
 import torch
 import numpy as np
 
-def arcpoint(x,a,b,inner):
+def arcpoint(x,a,b):
     # a and b are the endpoints of the arc,
-    # inner denotes whether small arc(true) or big arc (false)
     # returns true if x inside range of [a,b]
-
+    bp = b % (2*np.pi)
+    ap = a % (2*np.pi)
+    ap = torch.where(ap>np.pi, ap - 2*np.pi, ap)
+    bp = torch.where(bp>np.pi, bp - 2*np.pi, bp)
+    #print('modulo')
+    #print(ap)
+    #print(bp)
+    spread = torch.where(bp>ap, (bp-ap)/2, (bp+2*np.pi-ap)/2)
+    #print('spread')
+    #print(spread)
+    inner = torch.where(spread<np.pi/2, True, False)
     x,a,b = thetaParse(x,a,b)
+    #x = x% (2*np.pi)
+    #a = a% (2*np.pi)
+    #b = b% (2*np.pi)
+    #print('arcpoint')
+    #print(x)
+    #print(a)
+    #print(b)
     
     # a < x < b, b-a is smaller than pi
-    one_in = torch.logical_and(torch.logical_and(x < b, (b-a)< np.pi),x-a>0)
+    one_in = torch.logical_and(torch.logical_and(a < x, x<b),(b-a)< np.pi)
     # b-a is larger than pi, x < a or x > b)
     two_in = torch.logical_and((b-a) > np.pi, torch.logical_or(x<a, x>b))
     
@@ -29,6 +45,10 @@ def arcpoint(x,a,b,inner):
 
     case1 = torch.logical_or(torch.logical_or(torch.logical_or(one_in, two_in), three_in),four_in)
     case2 = torch.logical_or(torch.logical_or(torch.logical_or(one_out, two_out), three_out),four_out)
+
+    #case1 = torch.logical_or(one_in, two_in)
+    #case2 = torch.logical_or(one_out, two_out)
+
 
     return torch.where(inner, case1, case2)
        

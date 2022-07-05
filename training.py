@@ -4,6 +4,7 @@
 import torch
 import utils
 from torch.utils.tensorboard import SummaryWriter
+from collections import OrderedDict
 from tqdm.autonotebook import tqdm
 import time
 import numpy as np
@@ -13,7 +14,7 @@ import shutil
 
 def train(model, train_dataloader, epochs, lr, steps_til_summary, epochs_til_checkpoint, model_dir, loss_fn,
           summary_fn=None, val_dataloader=None, double_precision=False, clip_grad=False, use_lbfgs=False, loss_schedules=None,
-          validation_fn=None, start_epoch=0):
+          validation_fn=None, start_epoch=0, adjust_relative_grads=False):
 
     optim = torch.optim.Adam(lr=lr, params=model.parameters())
 
@@ -50,6 +51,11 @@ def train(model, train_dataloader, epochs, lr, steps_til_summary, epochs_til_che
     writer = SummaryWriter(summaries_dir)
 
     total_steps = 0
+
+    if adjust_relative_grads:
+        new_weight1 = 1
+        new_weight2 = 1
+
     with tqdm(total=len(train_dataloader) * epochs) as pbar:
         train_losses = []
         for epoch in range(start_epoch, epochs):
@@ -93,7 +99,33 @@ def train(model, train_dataloader, epochs, lr, steps_til_summary, epochs_til_che
                 model_output = model(model_input)
                 losses = loss_fn(model_output, gt)
 
-                # import ipdb; ipdb.set_trace()
+                # Adjust the relative magnitude of the losses if required
+                if adjust_relative_grads:
+                    if losses['diff_constraint_hom'] > 0.01:
+                        params = OrderedDict(model.named_parameters())
+                        # Gradients with respect to the PDE loss
+                        optim.zero_grad()
+                        losses['diff_constraint_hom'].backward(retain_graph=True)
+                        grads_PDE = []
+                        for key, param in params.items():
+                            grads_PDE.append(param.grad.view(-1))
+                        grads_PDE = torch.cat(grads_PDE)
+
+                        # Gradients with respect to the boundary loss
+                        optim.zero_grad()
+                        losses['dirichlet'].backward(retain_graph=True)
+                        grads_dirichlet = []
+                        for key, param in params.items():
+                            grads_dirichlet.append(param.grad.view(-1))
+                        grads_dirichlet = torch.cat(grads_dirichlet)
+
+                        # Set the new weight according to the paper
+                        # num = torch.max(torch.abs(grads_PDE))
+                        num = torch.mean(torch.abs(grads_PDE))
+                        den = torch.mean(torch.abs(grads_dirichlet))
+                        new_weight1 = 0.9*new_weight1 + 0.1*num/den
+                        losses['dirichlet'] = new_weight1 * losses['dirichlet']
+                        writer.add_scalar('weight_scaling1', new_weight1, total_steps)
 
                 train_loss = 0.
                 for loss_name, loss in losses.items():

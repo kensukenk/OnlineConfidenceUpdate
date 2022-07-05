@@ -59,10 +59,10 @@ p.add_argument('--seed', type=int, default=0, required=False, help='Seed for the
 
 p.add_argument('--checkpoint_path', default=None, help='Checkpoint to trained model.')
 p.add_argument('--checkpoint_toload', type=int, default=0, help='Checkpoint from which to restart the training.')
-p.add_argument('--beta', type=float, default=0.1, help='fixed confidence interval')
-p.add_argument('--beta1', type=float, default=0.1, help='fixed confidence interval')
-p.add_argument('--beta2', type=float, default=10, help='fixed confidence interval')
 p.add_argument('--periodic_boundary', action='store_true', default=False, required=False, help='Impose the periodic boundary condition.')
+p.add_argument('--diffModel', action='store_true', default=False, required=False, help='Should we train the difference model instead.')
+p.add_argument('--diffModel_mode', type=str, default='mode1', required=False, choices=['mode1', 'mode2'], help='BRS vs BRT computation')
+p.add_argument('--adjust_relative_grads', action='store_true', default=False, required=False, help='Adjust relative gradients of the loss function.')
 
 opt = p.parse_args()
 
@@ -74,45 +74,39 @@ if opt.counter_start == -1:
 if opt.counter_end == -1:
   opt.counter_end = opt.num_epochs
 
-dataset = dataio.HumanRobotPE(numpoints=65000, collisionR=opt.collisionR, velocity=opt.velocity, 
+dataset = dataio.ReachabilityHumanForwardParam(numpoints=65000, collisionR=opt.collisionR, velocity=opt.velocity, 
                                           omega_max=opt.omega_max, pretrain=opt.pretrain, tMin=opt.tMin,
                                           tMax=opt.tMax, counter_start=opt.counter_start, counter_end=opt.counter_end,
                                           pretrain_iters=opt.pretrain_iters, seed=opt.seed,
                                           angle_alpha=opt.angle_alpha,
-                                          num_src_samples=opt.num_src_samples, beta1 = opt.beta1, beta2 = opt.beta2, periodic_boundary = opt.periodic_boundary)
+                                          num_src_samples=opt.num_src_samples, periodic_boundary = opt.periodic_boundary, diffModel=opt.diffModel)
 
 dataloader = DataLoader(dataset, shuffle=True, batch_size=opt.batch_size, pin_memory=True, num_workers=0)
 
 # in_features = num states + 1 (for time) + num_params
-model = modules.SingleBVPNet(in_features=7, out_features=1, type=opt.model, mode=opt.mode,
+# t, x,y, x0,y0, umin1, umax1, umin2, umax2, umin3, umax3, umin4, umax4, umin5, umax5
+model = modules.SingleBVPNet(in_features=15, out_features=1, type=opt.model, mode=opt.mode,
                              final_layer_factor=1., hidden_features=opt.num_nl, num_hidden_layers=opt.num_hl)
 
 
 
 model.cuda()
+
 # Define the loss
-loss_fn = loss_functions.initialize_hji_human_robot_pe(dataset, opt.minWith)
+loss_fn = loss_functions.initialize_hji_human_forward_param(dataset, opt.minWith, opt.diffModel_mode)
 
 root_path = os.path.join(opt.logging_root, opt.experiment_name)
-
 def val_fn(model, ckpt_dir, epoch):
   # Time values at which the function needs to be plotted
   times = [0., 0.25*(opt.tMax - 0.1), 0.5*(opt.tMax - 0.1), 0.75*(opt.tMax - 0.1), opt.tMax - 0.1]
-  
   num_times = len(times)
 
   # xy slices to be plotted
-  theta = 0
-  x_h = 0
-  y_h = 0
+  controls = [math.pi/3, math.pi/3, math.pi/2]
+  num_controls = len(controls)
 
-  thetas = [-math.pi, -0.5*math.pi, 0., 0.5*math.pi, math.pi]
-  posx = [0.0, 0.5,-0.5, 0.0]
-  posy = [0.0, 0.5, 0.0, 0.5]
-  num_pos = len(posx)
-  num_thetas = len(thetas)
   # Create a figure
-  fig = plt.figure(figsize=(5*num_times, 5*num_pos))
+  fig = plt.figure(figsize=(5*num_times, 5*num_controls))
 
   # Get the meshgrid in the (x, y) coordinate
   sidelen = 200
@@ -121,35 +115,60 @@ def val_fn(model, ckpt_dir, epoch):
   # Start plotting the results
   for i in range(num_times):
     time_coords = torch.ones(mgrid_coords.shape[0], 1) * times[i]
-    xr_coords = torch.ones(mgrid_coords.shape[0], 1) * -0.5
-    yr_coords = torch.ones(mgrid_coords.shape[0], 1) * 0.
-    p_coords = torch.ones(mgrid_coords.shape[0], 1) * 0.75
+    x_coords = torch.ones(mgrid_coords.shape[0], 1) * -0.5
+    y_coords = torch.ones(mgrid_coords.shape[0], 1) * 0.0
+    umin1_coords = torch.ones(mgrid_coords.shape[0], 1) * -math.pi/6
+    umin1_coords = umin1_coords / (opt.angle_alpha * math.pi)
+    umax1_coords = torch.ones(mgrid_coords.shape[0], 1) * math.pi/6
+    umax1_coords = umax1_coords / (opt.angle_alpha * math.pi)
+    umin2_coords = torch.ones(mgrid_coords.shape[0], 1) * -math.pi/6
+    umin2_coords = umin2_coords / (opt.angle_alpha * math.pi)
+    umax2_coords = torch.ones(mgrid_coords.shape[0], 1) * math.pi/6
+    umax2_coords = umax2_coords / (opt.angle_alpha * math.pi)
+    umin3_coords = torch.ones(mgrid_coords.shape[0], 1) * -math.pi/6
+    umin3_coords = umin3_coords / (opt.angle_alpha * math.pi)
+    umax3_coords = torch.ones(mgrid_coords.shape[0], 1) * math.pi/6
+    umax3_coords = umax3_coords / (opt.angle_alpha * math.pi)
+    umin4_coords = torch.ones(mgrid_coords.shape[0], 1) * -math.pi/6
+    umin4_coords = umin4_coords / (opt.angle_alpha * math.pi)
+    umax4_coords = torch.ones(mgrid_coords.shape[0], 1) * math.pi/6
+    umax4_coords = umax4_coords / (opt.angle_alpha * math.pi)
+    
+    for j in range(num_controls):
+      umin5_coords = torch.ones(mgrid_coords.shape[0], 1) * -controls[j]
+      umin5_coords = umin5_coords / (opt.angle_alpha * math.pi)
+      umax5_coords = torch.ones(mgrid_coords.shape[0], 1) * controls[j]
+      umax5_coords = umax5_coords / (opt.angle_alpha * math.pi)
+      coords = torch.cat((time_coords, mgrid_coords, x_coords, y_coords, umin1_coords, umax1_coords, umin2_coords, umax2_coords,umin3_coords, umax3_coords,umin4_coords, umax4_coords,umin5_coords, umax5_coords), dim=1) 
+      #coords = torch.cat((time_coords, mgrid_coords, x_coords, y_coords, umin2_coords, umax2_coords), dim=1) 
 
-
-    for j in range(num_thetas):
-      theta_coords = torch.ones(mgrid_coords.shape[0], 1) * thetas[j]
-      theta_coords = theta_coords / (opt.angle_alpha * math.pi)
-
-      coords = torch.cat((time_coords, mgrid_coords, theta_coords, xr_coords, yr_coords,p_coords), dim=1) 
       model_in = {'coords': coords.cuda()}
       model_out = model(model_in)['model_out']
-      
-        # Detatch model ouput and reshape
+
+      # Detatch model ouput and reshape
       model_out = model_out.detach().cpu().numpy()
       model_out = model_out.reshape((sidelen, sidelen))
+
       # Unnormalize the value function
-      norm_to = 0.02
-      mean = 0.25
-      var = 0.5
-      model_out = (model_out*var/norm_to) + mean 
+      
+      model_out = (model_out*dataset.var/dataset.norm_to) + dataset.mean 
+      if opt.diffModel:
+        lx = dataset.compute_IC(coords[..., 1:])
+        lx = lx.detach().cpu().numpy()
+        lx = lx.reshape((sidelen, sidelen))
+        if opt.diffModel_mode == 'mode1':
+          model_out = model_out + lx 
+        elif opt.diffModel_mode == 'mode2':
+          model_out = model_out + lx - dataset.mean
+        else:
+          raise NotImplementedError
       # Plot the zero level sets
       model_out = (model_out <= 0.001)*1.
+
       # Plot the actual data
-      ax = fig.add_subplot(num_times, num_thetas, (j+1) + i*num_thetas)
-      ax.set_title('t = %0.2f, theta = %0.2f' % (times[i], thetas[j]))
+      ax = fig.add_subplot(num_times, num_controls, (j+1) + i*num_controls)
+      ax.set_title('t = %0.2f, umax2 = %0.2f' % (times[i], controls[j]))
       s = ax.imshow(model_out.T, cmap='bwr', origin='lower', extent=(-1., 1., -1., 1.))
-      #print(model_out.T)
-      plt.scatter(0, 0)
       fig.colorbar(s) 
 
   fig.savefig(os.path.join(ckpt_dir, 'BRS_validation_plot_epoch_%04d.png' % epoch))
@@ -159,4 +178,5 @@ def val_fn(model, ckpt_dir, epoch):
 training.train(model=model, train_dataloader=dataloader, epochs=opt.num_epochs, lr=opt.lr,
                steps_til_summary=opt.steps_til_summary, epochs_til_checkpoint=opt.epochs_til_ckpt,
                model_dir=root_path, loss_fn=loss_fn, clip_grad=opt.clip_grad,
-               use_lbfgs=opt.use_lbfgs, validation_fn=val_fn, start_epoch=opt.checkpoint_toload)
+               use_lbfgs=opt.use_lbfgs, validation_fn=val_fn, start_epoch=opt.checkpoint_toload,
+               adjust_relative_grads=opt.adjust_relative_grads)
