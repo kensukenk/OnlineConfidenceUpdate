@@ -365,24 +365,24 @@ def initialize_hji_human_forward_param(dataset, minWith, diffModel_mode):
             control2 = torch.where(control1 > 0, control1 - np.pi, control1 + np.pi)
             
             
-            t1 = torch.where(x[...,0]< tMax/4, True, False)
-            t2 = torch.logical_and(x[...,0]>= tMax/4,x[...,0]< tMax/2)
-            t3 = torch.logical_and(x[...,0]>= tMax/2,x[...,0]< 3*tMax/4)
-            t4 = torch.logical_and(x[...,0]>= 3*tMax/4, x[...,0]<1.)
-            t5 = torch.where(x[...,0] >= 1.0, True, False)
+            #t1 = torch.where(x[...,0]< tMax/4, True, False)
+            #t2 = torch.logical_and(x[...,0]>= tMax/4,x[...,0]< tMax/2)
+            #t3 = torch.logical_and(x[...,0]>= tMax/2,x[...,0]< 3*tMax/4)
+            #t4 = torch.logical_and(x[...,0]>= 3*tMax/4, x[...,0]<1.)
+            #t5 = torch.where(x[...,0] >= 1.0, True, False)
+
+            #t1 = torch.where(x[...,0]< 1.0, True, False)
+            #t2 = torch.where(x[...,0] >= 1.0, True, False)
             # t, x,y, x0,y0, umin1, umax1, umin2, umax2, umin3, umax3, umin4, umax4, umin5, umax5
 
-            umin = (1 - 4*x[...,0])*x[...,5] + (4*x[...,0])*x[...,7]
-            umin = torch.where(t2, (1-4*(x[...,0] - 0.25))*x[...,7] + (4*(x[...,0]-0.25))*x[...,9], umin)
-            umin = torch.where(t3, (1-4*(x[...,0] - 0.50))*x[...,9] + (4*(x[...,0] - 0.5))*x[...,11], umin)
-            umin = torch.where(t4, (1-4*(x[...,0] - 0.75))*x[...,11] + (4*(x[...,0] - 0.75))*x[...,13], umin)
-            umin = torch.where(t5, x[...,13], umin)
+            #umin = (1 - x[...,0])*x[...,5] + (x[...,0])*x[...,7]
+            #umin = torch.where(t2, x[...,7], umin)
 
-            umax = (1 - 4*x[...,0])*x[...,6] + (4*x[...,0])*x[...,8]
-            umax = torch.where(t2, (1-4*(x[...,0] - 0.25))*x[...,8] + (4*(x[...,0]-0.25))*x[...,10], umax)
-            umax = torch.where(t3, (1-4*(x[...,0] - 0.50))*x[...,10] + (4*(x[...,0] - 0.5))*x[...,12], umax)
-            umax = torch.where(t4, (1-4*(x[...,0] - 0.75))*x[...,12] + (4*(x[...,0] - 0.75))*x[...,14], umax)
-            umax = torch.where(t5, x[...,14], umax)
+            #umax = (1 - x[...,0])*x[...,6] + (x[...,0])*x[...,8]
+            #umax = torch.where(t2, x[...,8], umax)
+
+            umin = x[...,5]
+            umax = x[...,6]
 
             #umax = 4*x[...,0]*x[...,6] + (1 - 4*x[...,0])*x[...,8]
             #umax = torch.where(t2, 4*(x[...,0] - 0.25)*x[...,8] + (1 - 4*(x[...,0]-0.25))*x[...,10], umax)

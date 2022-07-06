@@ -47,7 +47,7 @@ p.add_argument('--num_src_samples', type=int, default=1000, required=False, help
 
 p.add_argument('--velocity', type=float, default=0.6, required=False, help='Speed of the dubins car')
 p.add_argument('--omega_max', type=float, default=1.1, required=False, help='Turn rate of the car')
-p.add_argument('--angle_alpha', type=float, default=1.0, required=False, help='Angle alpha coefficient.')
+p.add_argument('--angle_alpha', type=float, default=1.2, required=False, help='Angle alpha coefficient.')
 p.add_argument('--collisionR', type=float, default=0.2, required=False, help='Collision radisu between vehicles')
 p.add_argument('--minWith', type=str, default='none', required=False, choices=['none', 'zero', 'target'], help='BRS vs BRT computation')
 
@@ -84,8 +84,8 @@ dataset = dataio.ReachabilityHumanForwardParam(numpoints=65000, collisionR=opt.c
 dataloader = DataLoader(dataset, shuffle=True, batch_size=opt.batch_size, pin_memory=True, num_workers=0)
 
 # in_features = num states + 1 (for time) + num_params
-# t, x,y, x0,y0, umin1, umax1, umin2, umax2, umin3, umax3, umin4, umax4, umin5, umax5
-model = modules.SingleBVPNet(in_features=15, out_features=1, type=opt.model, mode=opt.mode,
+# t, x,y, x0,y0, umin1, umax1,
+model = modules.SingleBVPNet(in_features=7, out_features=1, type=opt.model, mode=opt.mode,
                              final_layer_factor=1., hidden_features=opt.num_nl, num_hidden_layers=opt.num_hl)
 
 
@@ -102,7 +102,7 @@ def val_fn(model, ckpt_dir, epoch):
   num_times = len(times)
 
   # xy slices to be plotted
-  controls = [math.pi/3, math.pi/3, math.pi/2]
+  controls = [math.pi/6, math.pi/3, math.pi/2]
   num_controls = len(controls)
 
   # Create a figure
@@ -117,29 +117,13 @@ def val_fn(model, ckpt_dir, epoch):
     time_coords = torch.ones(mgrid_coords.shape[0], 1) * times[i]
     x_coords = torch.ones(mgrid_coords.shape[0], 1) * -0.5
     y_coords = torch.ones(mgrid_coords.shape[0], 1) * 0.0
-    umin1_coords = torch.ones(mgrid_coords.shape[0], 1) * -math.pi/6
-    umin1_coords = umin1_coords / (opt.angle_alpha * math.pi)
-    umax1_coords = torch.ones(mgrid_coords.shape[0], 1) * math.pi/6
-    umax1_coords = umax1_coords / (opt.angle_alpha * math.pi)
-    umin2_coords = torch.ones(mgrid_coords.shape[0], 1) * -math.pi/6
-    umin2_coords = umin2_coords / (opt.angle_alpha * math.pi)
-    umax2_coords = torch.ones(mgrid_coords.shape[0], 1) * math.pi/6
-    umax2_coords = umax2_coords / (opt.angle_alpha * math.pi)
-    umin3_coords = torch.ones(mgrid_coords.shape[0], 1) * -math.pi/6
-    umin3_coords = umin3_coords / (opt.angle_alpha * math.pi)
-    umax3_coords = torch.ones(mgrid_coords.shape[0], 1) * math.pi/6
-    umax3_coords = umax3_coords / (opt.angle_alpha * math.pi)
-    umin4_coords = torch.ones(mgrid_coords.shape[0], 1) * -math.pi/6
-    umin4_coords = umin4_coords / (opt.angle_alpha * math.pi)
-    umax4_coords = torch.ones(mgrid_coords.shape[0], 1) * math.pi/6
-    umax4_coords = umax4_coords / (opt.angle_alpha * math.pi)
     
     for j in range(num_controls):
-      umin5_coords = torch.ones(mgrid_coords.shape[0], 1) * -controls[j]
-      umin5_coords = umin5_coords / (opt.angle_alpha * math.pi)
-      umax5_coords = torch.ones(mgrid_coords.shape[0], 1) * controls[j]
-      umax5_coords = umax5_coords / (opt.angle_alpha * math.pi)
-      coords = torch.cat((time_coords, mgrid_coords, x_coords, y_coords, umin1_coords, umax1_coords, umin2_coords, umax2_coords,umin3_coords, umax3_coords,umin4_coords, umax4_coords,umin5_coords, umax5_coords), dim=1) 
+      umin1_coords = torch.ones(mgrid_coords.shape[0], 1) * -controls[j]
+      umin1_coords = umin1_coords / (opt.angle_alpha * math.pi)
+      umax1_coords = torch.ones(mgrid_coords.shape[0], 1) * controls[j]
+      umax1_coords = umax1_coords / (opt.angle_alpha * math.pi)
+      coords = torch.cat((time_coords, mgrid_coords, x_coords, y_coords, umin1_coords, umax1_coords), dim=1) 
       #coords = torch.cat((time_coords, mgrid_coords, x_coords, y_coords, umin2_coords, umax2_coords), dim=1) 
 
       model_in = {'coords': coords.cuda()}

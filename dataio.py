@@ -441,11 +441,13 @@ class ReachabilityHumanForwardParam(Dataset):
         self.velocity = velocity
         self.collisionR = collisionR
 
-        self.alpha_angle = 1.1 * math.pi
+        self.alpha_angle = angle_alpha * math.pi
         # t, x,y, x0,y0, umin1, umax1, umin2, umax2, umin3, umax3, umin4, umax4, umin5, umax5
 
-        self.num_states = 14 #states are x,y, startx, starty, umin1, umax1, umin2 umax2
-        self.num_angle_param = 10
+        self.num_states = 6 #states are x,y, startx, starty, umin1, umax1
+        self.num_angle_param = 2
+        self.umin_index = 5
+        self.umax_index = 6
 
         self.tMax = tMax
         self.tMin = tMin
@@ -486,8 +488,7 @@ class ReachabilityHumanForwardParam(Dataset):
 
     def __getitem__(self, idx):
         start_time = 0.  # time to apply  initial conditions
-        umin_index = 5
-        umax_index = 14
+
 
         # uniformly sample domain and include coordinates where source is non-zero 
         coords = torch.zeros(self.numpoints, self.num_states).uniform_(-1, 1)
@@ -512,7 +513,7 @@ class ReachabilityHumanForwardParam(Dataset):
             coords_angle_concatenated = torch.cat((coords_angle, coords_angle_periodic), dim=0)
             coords_angle_concatenated_normalized = (coords_angle_concatenated )/self.alpha_angle
             coords[:self.N_boundary_pts] = coords[self.N_boundary_pts:2*self.N_boundary_pts]
-            coords[:2*self.N_boundary_pts, umin_index:umax_index+1] = coords_angle_concatenated_normalized[..., :]
+            coords[:2*self.N_boundary_pts, self.umin_index:self.umax_index+1] = coords_angle_concatenated_normalized[..., :]
 
 
 
@@ -532,7 +533,7 @@ class ReachabilityHumanForwardParam(Dataset):
             # Compute the gradients of the value function
             lx_grads = diff_operators.gradient(boundary_values, coords_var)[..., 1:]
         else:
-            boundary_values = self.compute_IC(coords_var[..., 1:])
+            boundary_values = self.compute_IC(coords[..., 1:])
 
             #boundary_values = torch.norm(coords[:, 1:3]-coords[:,3:5], dim=1, keepdim=True) - self.collisionR
 
