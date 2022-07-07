@@ -319,7 +319,6 @@ def initialize_hji_human_forward_param(dataset, minWith, diffModel_mode):
     num_boundary_pts = dataset.N_boundary_pts
     diffModel = dataset.diffModel
 
-    
 
     def hji_human_forward_param(model_output, gt):
         source_boundary_values = gt['source_boundary_values']
@@ -348,70 +347,40 @@ def initialize_hji_human_forward_param(dataset, minWith, diffModel_mode):
             else:
                 diff_from_lx = y - source_boundary_values
 
-
-            #umin = x[...,5] * 1.0
-            #umax = x[...,6] * 1.0
             # Scale the costate appropriately.
             dudx[..., 4:] = dudx[..., 4:] / alpha_angle
-            #dudx[..., 5] = dudx[..., 5] / alpha_angle
-            #dudx[..., 6] = dudx[..., 6] / alpha_angle
-            #dudx[..., 7] = dudx[..., 7] / alpha_angle
             
-        
-        
-
-            # control that maximizes the hamiltonians
+            # control that optimizes the hamiltonians
             control1 = torch.atan2(dudx[...,1], dudx[...,0])
             control2 = torch.where(control1 > 0, control1 - np.pi, control1 + np.pi)
             
+            t1 = torch.where(x[...,0]< 0.25, True, False)
+            t2 = torch.logical_and(x[...,0]>= 0.25,x[...,0]< 0.5)
+            t3 = torch.logical_and(x[...,0]>= 0.5,x[...,0]< 0.75)
+            t4 = torch.logical_and(x[...,0]>= 0.75, x[...,0]<1.)
+            t5 = torch.where(x[...,0] >= 1.0, True, False)
+
+            # piecewise linear controls
+            umin = (1 - 4*x[...,0])*x[...,5] + (4*x[...,0])*x[...,7]
+            umin = torch.where(t2, (1 - 4*(x[...,0]-0.25))*x[..., 7] + 4*(x[...,0]-0.25)*x[..., 9], umin) 
+            umin = torch.where(t3, (1 - 4*(x[...,0]-0.50))*x[..., 9] + 4*(x[...,0]-0.50)*x[...,11], umin) 
+            umin = torch.where(t4, (1 - 4*(x[...,0]-0.75))*x[...,11] + 4*(x[...,0]-0.75)*x[...,13], umin) 
+            umin = torch.where(t5, x[...,13], umin) 
             
-            #t1 = torch.where(x[...,0]< tMax/4, True, False)
-            #t2 = torch.logical_and(x[...,0]>= tMax/4,x[...,0]< tMax/2)
-            #t3 = torch.logical_and(x[...,0]>= tMax/2,x[...,0]< 3*tMax/4)
-            #t4 = torch.logical_and(x[...,0]>= 3*tMax/4, x[...,0]<1.)
-            #t5 = torch.where(x[...,0] >= 1.0, True, False)
+            umax = (1 - 4*x[...,0])*x[...,6] + (4*x[...,0])*x[...,8]
+            umax = torch.where(t2, (1 - 4*(x[...,0]-0.25))*x[..., 8] + 4*(x[...,0]-0.25)*x[...,10], umax) 
+            umax = torch.where(t3, (1 - 4*(x[...,0]-0.50))*x[...,10] + 4*(x[...,0]-0.50)*x[...,12], umax) 
+            umax = torch.where(t4, (1 - 4*(x[...,0]-0.75))*x[...,12] + 4*(x[...,0]-0.75)*x[...,14], umax) 
+            umax = torch.where(t5, x[...,14], umax) 
+            
 
-            #t1 = torch.where(x[...,0]< 1.0, True, False)
-            #t2 = torch.where(x[...,0] >= 1.0, True, False)
-            # t, x,y, x0,y0, umin1, umax1, umin2, umax2, umin3, umax3, umin4, umax4, umin5, umax5
-
-            #umin = (1 - x[...,0])*x[...,5] + (x[...,0])*x[...,7]
-            #umin = torch.where(t2, x[...,7], umin)
-
-            #umax = (1 - x[...,0])*x[...,6] + (x[...,0])*x[...,8]
-            #umax = torch.where(t2, x[...,8], umax)
-
-            umin = x[...,5]
-            umax = x[...,6]
-
-            #umax = 4*x[...,0]*x[...,6] + (1 - 4*x[...,0])*x[...,8]
-            #umax = torch.where(t2, 4*(x[...,0] - 0.25)*x[...,8] + (1 - 4*(x[...,0]-0.25))*x[...,10], umax)
-            #umax = torch.where(t3, 4*(x[...,0] - 0.50)*x[...,10] + (1 - 4*(x[...,0] - 0.5))*x[...,12], umax)
-            #umax = torch.where(t4, 4*(x[...,0] - 0.75)*x[...,12] + (1 - 4*(x[...,0] - 0.75))*x[...,14], umax)
-            #umax = torch.where(t5, x[...,14], umax)
-
-
-            '''
-            x_theta = x[..., 3] * 1.0
-
-            # Scale the costate for theta appropriately to align with the range of [-pi, pi]
-            dudx[..., 2] = dudx[..., 2] / alpha_angle
-            # Scale the coordinates
-            x_theta = alpha_angle * x_theta
-            '''
             # Scale the angle state
             umin = alpha_angle * umin
             umax = alpha_angle * umax
         
-
-
-            
-
-            #spread = torch.where(umax> umin, (umax - umin)/2, (umax + 2*np.pi - umin)/2 )
-            #inner = torch.where(spread < np.pi/2, True, False)
+            # if a control is outisde the umin/umax range, set it to umin/umax depending on which point is closer
             offset1 = torch.where(pointDist(control1,umin,umax), umin, umax)
             control1 = torch.where(arcpoint(control1,umin,umax), control1, offset1)
-
     
             offset2 = torch.where(pointDist(control2,umin,umax), umin,umax)
             control2 = torch.where(arcpoint(control2,umin,umax), control2, offset2)
@@ -419,18 +388,13 @@ def initialize_hji_human_forward_param(dataset, minWith, diffModel_mode):
             # human dynamics
             # \dot x        = v \cos u
             # \dot y        = v \sin u
-            # \dot x0       = 0
-            # \dot y0       = 0
-            # \dot umin1    = 0
-            # \dot umax1    = 0
-            # \dot umin2    = 0
-            # \dot umax2    = 0
             
+            # negative dynamics since it is a FRS
             ham = -dudx[...,0]*velocity*(torch.cos(control1)) - dudx[...,1]*velocity*(torch.sin(control1))
             ham2 = -dudx[...,0]*velocity*(torch.cos(control2)) - dudx[...,1]*velocity*(torch.sin(control2))
-            ham = torch.where(ham2<ham, ham2, ham)
+            ham = torch.where(ham2<ham, ham2, ham) # min since FRS
             
-        
+
             # If we are computing BRT then take min with zero
             if minWith == 'zero':
                 ham = torch.clamp(ham, max=0.0)

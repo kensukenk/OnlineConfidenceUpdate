@@ -442,12 +442,10 @@ class ReachabilityHumanForwardParam(Dataset):
         self.collisionR = collisionR
 
         self.alpha_angle = angle_alpha * math.pi
-        # t, x,y, x0,y0, umin1, umax1, umin2, umax2, umin3, umax3, umin4, umax4, umin5, umax5
-
-        self.num_states = 6 #states are x,y, startx, starty, umin1, umax1
-        self.num_angle_param = 2
+        self.num_states = 14 #states are x,y, startx, starty, umin1, umax1, umin2, umax2, umin3, umax3, umin4, umax4, umin5, umax5
+        self.num_angle_param = 10
         self.umin_index = 5
-        self.umax_index = 6
+        self.umax_index = 14
 
         self.tMax = tMax
         self.tMin = tMin
@@ -464,13 +462,6 @@ class ReachabilityHumanForwardParam(Dataset):
         self.mean = 0.25
         self.var = 0.5
 
-        
-        #self.goal = torch.tensor([0.0, 0.0])
-        #self.beta1 = beta1
-        #self.beta2 = beta2
-        
-        
-
         # Set the seed
         torch.manual_seed(seed)
 
@@ -480,15 +471,11 @@ class ReachabilityHumanForwardParam(Dataset):
     def compute_IC(self, state_coords):
         state_coords_unnormalized = state_coords * 1.0
         state_coords_unnormalized[..., 0:2] = state_coords_unnormalized[..., 0:2] - state_coords_unnormalized[..., 2:4]
-        #state_coords_unnormalized[..., 1] = state_coords_unnormalized[..., 1] - state_coords_unnormalized[..., 3]
-        #state_coords_unnormalized[..., 2] = state_coords_unnormalized[..., 2] * self.alpha['th'] + self.beta['th']
-        #boundary_values = torch.norm(state_coords[:, 1:3]-state_coords[:,3:5], dim=1, keepdim=True) - self.collisionR
         boundary_values = torch.norm(state_coords_unnormalized[..., 0:2], dim=-1, keepdim=True) - self.collisionR
         return boundary_values
 
     def __getitem__(self, idx):
         start_time = 0.  # time to apply  initial conditions
-
 
         # uniformly sample domain and include coordinates where source is non-zero 
         coords = torch.zeros(self.numpoints, self.num_states).uniform_(-1, 1)
@@ -522,45 +509,14 @@ class ReachabilityHumanForwardParam(Dataset):
         if self.diffModel:
             coords_var = torch.tensor(coords.clone(), requires_grad=True)
             boundary_values = self.compute_IC(coords_var[..., 1:])
-            #boundary_values = torch.norm(coords_var[:, 1:3]-coords_var[:,3:5], dim=1, keepdim=True) - self.collisionR
-
-            # normalize the value function
-            #norm_to = 0.02
-            #mean = 0.25
-            #var = 0.5
 
             boundary_values = (boundary_values - self.mean)*self.norm_to/self.var
             # Compute the gradients of the value function
             lx_grads = diff_operators.gradient(boundary_values, coords_var)[..., 1:]
         else:
             boundary_values = self.compute_IC(coords[..., 1:])
-
-            #boundary_values = torch.norm(coords[:, 1:3]-coords[:,3:5], dim=1, keepdim=True) - self.collisionR
-
-            # normalize the value function
-            #norm_to = 0.02
-            #mean = 0.25
-            #var = 0.5
-
             boundary_values = (boundary_values - self.mean)*self.norm_to/self.var
-            #boundary_values = self.compute_IC(coords[..., 1:])
 
-            # Normalize the value function
-            # print('Min and max value before normalization are %0.4f and %0.4f' %(min(boundary_values), max(boundary_values)))
-            #boundary_values = (boundary_values - self.mean)*self.norm_to/self.var
-            # print('Min and max value after normalization are %0.4f and %0.4f' %(min(boundary_values), max(boundary_values)))
-        
-
-
-        #boundary_values = torch.norm(coords[:, 1:3]-coords[:,3:5], dim=1, keepdim=True) - self.collisionR
-
-        # normalize the value function
-        #norm_to = 0.02
-        #mean = 0.25
-        #var = 0.5
-
-        #boundary_values = (boundary_values - mean)*norm_to/var
-        
         if self.pretrain:
             dirichlet_mask = torch.ones(coords.shape[0], 1) > 0
         else:
