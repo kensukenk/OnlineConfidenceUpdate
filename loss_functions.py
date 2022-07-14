@@ -347,17 +347,15 @@ def initialize_hji_human_forward_param(dataset, minWith, diffModel_mode):
             else:
                 diff_from_lx = y - source_boundary_values
 
-            # Scale the costate appropriately.
-            dudx[..., 4:] = dudx[..., 4:] / alpha_angle
             
             # control that optimizes the hamiltonians
             control1 = torch.atan2(dudx[...,1], dudx[...,0])
             control2 = torch.where(control1 > 0, control1 - np.pi, control1 + np.pi)
             
             t1 = torch.where(x[...,0]< 0.25, True, False)
-            t2 = torch.logical_and(x[...,0]>= 0.25,x[...,0]< 0.5)
-            t3 = torch.logical_and(x[...,0]>= 0.5,x[...,0]< 0.75)
-            t4 = torch.logical_and(x[...,0]>= 0.75, x[...,0]<1.)
+            t2 = torch.logical_and(x[...,0]>= 0.25,x[...,0]< 0.50)
+            t3 = torch.logical_and(x[...,0]>= 0.50,x[...,0]< 0.75)
+            t4 = torch.logical_and(x[...,0]>= 0.75,x[...,0]<1.0)
             t5 = torch.where(x[...,0] >= 1.0, True, False)
 
             # piecewise linear controls
@@ -426,3 +424,170 @@ def initialize_hji_human_forward_param(dataset, minWith, diffModel_mode):
                     'diff_constraint_hom': torch.abs(diff_constraint_hom).sum()}
 
     return hji_human_forward_param
+
+def initialize_hji_dubins4d_forward_param(dataset, minWith, diffModel_mode):
+    # Initialize the loss function for the air3D problem
+    # The dynamics parameters
+    
+    tMax = dataset.tMax
+
+    periodic_boundary = dataset.periodic_boundary
+    num_boundary_pts = dataset.N_boundary_pts
+    diffModel = dataset.diffModel
+
+    alpha = dataset.alpha
+    beta = dataset.beta
+
+    compute_overall_ham = dataset.compute_overall_ham
+    normalized_zero_value = -dataset.mean * dataset.norm_to/dataset.var #The normalized value corresponding to V=0
+
+    def hji_dubins4d_forward_param(model_output, gt):
+        source_boundary_values = gt['source_boundary_values']
+        x = model_output['model_in']  # (meta_batch_size, num_points, 5)
+        y = model_output['model_out']  # (meta_batch_size, num_points, 1)
+        dirichlet_mask = gt['dirichlet_mask']
+        batch_size = x.shape[1]
+
+        if torch.all(dirichlet_mask):
+            diff_constraint_hom = torch.Tensor([0])
+        else:
+            # Compute the spatial and time derivatives of the value function
+            du, status = diff_operators.jacobian(y, x)
+            dudt = du[..., 0, 0]
+            dudx = du[..., 0, 1:5]
+
+            # Adjust the spatial gradient of lx if needed
+            if diffModel:
+                dudx = dudx + gt['lx_grads']
+                if diffModel_mode == 'mode1':
+                    diff_from_lx = y - normalized_zero_value
+                elif diffModel_mode == 'mode2':
+                    diff_from_lx = y
+                else:
+                    raise NotImplementedError   
+            else:
+                diff_from_lx = y - source_boundary_values
+
+            # Scale the time derivative appropriately
+            dudt = dudt / alpha['time']
+            diff_from_lx = diff_from_lx / alpha['time']
+
+            ham = compute_overall_ham(x, dudx)
+            
+            # If we are computing BRT then take min with zero
+            if minWith == 'zero':
+                ham = torch.clamp(ham, max=0.0)
+            
+            #diff_constraint_hom = (dudt / alpha['time']) - ham
+            diff_constraint_hom = dudt - ham
+
+            if minWith == 'target':
+                diff_constraint_hom = torch.max(diff_constraint_hom[:, :, None], diff_from_lx)
+
+        # Boundary loss
+        if diffModel:
+            if diffModel_mode == 'mode1':
+                dirichlet = y[dirichlet_mask] - normalized_zero_value
+            elif diffModel_mode == 'mode2':
+                dirichlet = y[dirichlet_mask]
+            else:
+                raise NotImplementedError  
+        else:
+            dirichlet = y[dirichlet_mask] - source_boundary_values[dirichlet_mask]
+        
+        if periodic_boundary:
+            # import ipdb; ipdb.set_trace()
+            periodic_boundary_loss = y[:, :num_boundary_pts] - y[:, num_boundary_pts:2*num_boundary_pts]
+            return {'dirichlet': torch.abs(dirichlet).sum() * batch_size / 75e2,
+                    'diff_constraint_hom': torch.abs(diff_constraint_hom).sum(),
+                    # 'periodicity': torch.abs(periodic_boundary_loss).sum() * batch_size / 75e2}
+                    'periodicity': torch.abs(periodic_boundary_loss).sum() * batch_size * 50 / 75e2}
+        else:
+            return {'dirichlet': torch.abs(dirichlet).sum() * batch_size / 75e2,
+                    'diff_constraint_hom': torch.abs(diff_constraint_hom).sum()}
+
+    return hji_dubins4d_forward_param
+
+def initialize_hji_dubins4d_forward_param2set(dataset, minWith, diffModel_mode):
+    # Initialize the loss function for the air3D problem
+    # The dynamics parameters
+    
+    tMax = dataset.tMax
+
+    periodic_boundary = dataset.periodic_boundary
+    num_boundary_pts = dataset.N_boundary_pts
+    diffModel = dataset.diffModel
+
+    alpha = dataset.alpha
+    beta = dataset.beta
+
+    compute_overall_ham = dataset.compute_overall_ham
+    normalized_zero_value = -dataset.mean * dataset.norm_to/dataset.var #The normalized value corresponding to V=0
+
+
+    def hji_dubins4d_forward_param2set(model_output, gt):
+        source_boundary_values = gt['source_boundary_values']
+        x = model_output['model_in']  # (meta_batch_size, num_points, 5)
+        y = model_output['model_out']  # (meta_batch_size, num_points, 1)
+        dirichlet_mask = gt['dirichlet_mask']
+        batch_size = x.shape[1]
+
+        if torch.all(dirichlet_mask):
+            diff_constraint_hom = torch.Tensor([0])
+        else:
+            # Compute the spatial and time derivatives of the value function
+            du, status = diff_operators.jacobian(y, x)
+            dudt = du[..., 0, 0]
+            dudx = du[..., 0, 1:5]
+
+            # Adjust the spatial gradient of lx if needed
+            if diffModel:
+                dudx = dudx + gt['lx_grads']
+                if diffModel_mode == 'mode1':
+                    diff_from_lx = y - normalized_zero_value
+                elif diffModel_mode == 'mode2':
+                    diff_from_lx = y
+                else:
+                    raise NotImplementedError   
+            else:
+                diff_from_lx = y - source_boundary_values
+
+            # Scale the time derivative appropriately
+            dudt = dudt / alpha['time']
+            diff_from_lx = diff_from_lx / alpha['time']
+
+            ham = compute_overall_ham(x, dudx)
+            
+            # If we are computing BRT then take min with zero
+            if minWith == 'zero':
+                ham = torch.clamp(ham, max=0.0)
+            
+            #diff_constraint_hom = (dudt / alpha['time']) - ham
+            diff_constraint_hom = dudt - ham
+
+            if minWith == 'target':
+                diff_constraint_hom = torch.max(diff_constraint_hom[:, :, None], diff_from_lx)
+
+        # Boundary loss
+        if diffModel:
+            if diffModel_mode == 'mode1':
+                dirichlet = y[dirichlet_mask] - normalized_zero_value
+            elif diffModel_mode == 'mode2':
+                dirichlet = y[dirichlet_mask]
+            else:
+                raise NotImplementedError  
+        else:
+            dirichlet = y[dirichlet_mask] - source_boundary_values[dirichlet_mask]
+        
+        if periodic_boundary:
+            # import ipdb; ipdb.set_trace()
+            periodic_boundary_loss = y[:, :num_boundary_pts] - y[:, num_boundary_pts:2*num_boundary_pts]
+            return {'dirichlet': torch.abs(dirichlet).sum() * batch_size / 75e2,
+                    'diff_constraint_hom': torch.abs(diff_constraint_hom).sum(),
+                    # 'periodicity': torch.abs(periodic_boundary_loss).sum() * batch_size / 75e2}
+                    'periodicity': torch.abs(periodic_boundary_loss).sum() * batch_size * 50 / 75e2}
+        else:
+            return {'dirichlet': torch.abs(dirichlet).sum() * batch_size / 75e2,
+                    'diff_constraint_hom': torch.abs(diff_constraint_hom).sum()}
+
+    return hji_dubins4d_forward_param2set
