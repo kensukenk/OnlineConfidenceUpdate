@@ -74,7 +74,7 @@ if opt.counter_start == -1:
 if opt.counter_end == -1:
   opt.counter_end = opt.num_epochs
 
-dataset = dataio.ReachabilityDubins4DForwardParam2Set(numpoints=65000, collisionR=opt.collisionR, velocity=opt.velocity, 
+dataset = dataio.ReachabilityDubins4DForwardParam2SetScaled(numpoints=65000, collisionR=opt.collisionR, velocity=opt.velocity, 
                                           omega_max=opt.omega_max, pretrain=opt.pretrain, tMin=opt.tMin,
                                           tMax=opt.tMax, counter_start=opt.counter_start, counter_end=opt.counter_end,
                                           pretrain_iters=opt.pretrain_iters, seed=opt.seed,
@@ -101,11 +101,11 @@ beta = dataset.beta
 root_path = os.path.join(opt.logging_root, opt.experiment_name)
 def val_fn(model, ckpt_dir, epoch):
   # Time values at which the function needs to be plotted
-  times = [0., 0.2, 0.4, 0.6, 0.8, 1.0]
+  times = [0., 3*opt.tMax*0.2, 3*opt.tMax*0.4, 3*opt.tMax*0.6, 3*opt.tMax*0.8, 3*opt.tMax*1.0]
   num_times = len(times)
 
   # xy slices to be plotted
-  controls = [2., 3, 10]
+  controls = [2.]
   num_controls = len(controls)
 
   # Create a figure
@@ -117,22 +117,22 @@ def val_fn(model, ckpt_dir, epoch):
 
   # Start plotting the results
   for i in range(num_times):
-    time_coords = torch.ones(mgrid_coords.shape[0], 1) * times[i]
-    x_coords = torch.ones(mgrid_coords.shape[0], 1) * 0.0
-    y_coords = torch.ones(mgrid_coords.shape[0], 1) * 0.0
-    theta_coords = torch.ones(mgrid_coords.shape[0], 1) * 0.0
-    v_coords = torch.ones(mgrid_coords.shape[0], 1) * (3.0 - beta['v'])/alpha['v']
+    time_coords = torch.ones(mgrid_coords.shape[0], 1) * times[i]/alpha['time']
+    x_coords = torch.ones(mgrid_coords.shape[0], 1) * (7.0 - beta['x'])/alpha['x']
+    y_coords = torch.ones(mgrid_coords.shape[0], 1) * (-3.0 - beta['y'])/alpha['y']
+    theta_coords = torch.ones(mgrid_coords.shape[0], 1) * (2.72 - beta['th'])/alpha['th']
+    v_coords = torch.ones(mgrid_coords.shape[0], 1) * (9.0 - beta['v'])/alpha['v']
 
-    amin1_coords = torch.ones(mgrid_coords.shape[0], 1) * (0.3 - beta['a'])/alpha['a'] 
-    amax1_coords = torch.ones(mgrid_coords.shape[0], 1) * (0.5 - beta['a'])/alpha['a'] 
-    amin2_coords = torch.ones(mgrid_coords.shape[0], 1) * (0.3 - beta['a'])/alpha['a'] 
-    amax2_coords = torch.ones(mgrid_coords.shape[0], 1) * (0.5 - beta['a'])/alpha['a'] 
+    amin1_coords = torch.ones(mgrid_coords.shape[0], 1) * (-12. - beta['a'])/alpha['a'] 
+    amax1_coords = torch.ones(mgrid_coords.shape[0], 1) * (10.7 - beta['a'])/alpha['a'] 
+    amin2_coords = torch.ones(mgrid_coords.shape[0], 1) * (-7.05 - beta['a'])/alpha['a'] 
+    amax2_coords = torch.ones(mgrid_coords.shape[0], 1) * (8.4 - beta['a'])/alpha['a'] 
 
-    omin1_coords = torch.ones(mgrid_coords.shape[0], 1) * (-3.0 - beta['o'])/alpha['o']
-    omax1_coords = torch.ones(mgrid_coords.shape[0], 1) * (3.0 - beta['o'])/alpha['o']
+    omin1_coords = torch.ones(mgrid_coords.shape[0], 1) * (.195 - beta['o'])/alpha['o']
+    omax1_coords = torch.ones(mgrid_coords.shape[0], 1) * (0.782 - beta['o'])/alpha['o']
     for j in range(num_controls):
-      omin2_coords = torch.ones(mgrid_coords.shape[0], 1) * (-controls[j] - beta['o'])/alpha['o']
-      omax2_coords = torch.ones(mgrid_coords.shape[0], 1) * (controls[j]  - beta['o'])/alpha['o']
+      omin2_coords = torch.ones(mgrid_coords.shape[0], 1) * (0.246 - beta['o'])/alpha['o']
+      omax2_coords = torch.ones(mgrid_coords.shape[0], 1) * (0.525  - beta['o'])/alpha['o']
       coords = torch.cat((time_coords, mgrid_coords,theta_coords,v_coords, x_coords, y_coords, amin1_coords, amax1_coords,omin1_coords, omax1_coords,amin2_coords, amax2_coords,omin2_coords, omax2_coords), dim=1) 
       #coords = torch.cat((time_coords, mgrid_coords, x_coords, y_coords, umin2_coords, umax2_coords), dim=1) 
 
