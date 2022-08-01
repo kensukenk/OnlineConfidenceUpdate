@@ -74,7 +74,7 @@ if opt.counter_start == -1:
 if opt.counter_end == -1:
   opt.counter_end = opt.num_epochs
 
-dataset = dataio.ReachabilityDubins4DForwardParam2SetScaled(numpoints=65000, collisionR=opt.collisionR, velocity=opt.velocity, 
+dataset = dataio.ReachabilityDubins4DReachAvoidParam2SetScaled(numpoints=65000, collisionR=opt.collisionR, velocity=opt.velocity, 
                                           omega_max=opt.omega_max, pretrain=opt.pretrain, tMin=opt.tMin,
                                           tMax=opt.tMax, counter_start=opt.counter_start, counter_end=opt.counter_end,
                                           pretrain_iters=opt.pretrain_iters, seed=opt.seed,
@@ -85,15 +85,13 @@ dataloader = DataLoader(dataset, shuffle=True, batch_size=opt.batch_size, pin_me
 
 # in_features = num states + 1 (for time) + num_params
 # t, x,y, x0,y0, umin1, umax1,
-model = modules.SingleBVPNet(in_features=15, out_features=1, type=opt.model, mode=opt.mode,
+model = modules.SingleBVPNet(in_features=14, out_features=1, type=opt.model, mode=opt.mode,
                              final_layer_factor=1., hidden_features=opt.num_nl, num_hidden_layers=opt.num_hl)
-
-
 
 model.cuda()
 
 # Define the loss
-loss_fn = loss_functions.initialize_hji_dubins4d_forward_param(dataset, opt.minWith, opt.diffModel_mode)
+loss_fn = loss_functions.initialize_hji_dubins4d_reach_avoid_param(dataset, opt.minWith, opt.diffModel_mode)
 
 alpha = dataset.alpha
 beta = dataset.beta
@@ -118,22 +116,24 @@ def val_fn(model, ckpt_dir, epoch):
   # Start plotting the results
   for i in range(num_times):
     time_coords = torch.ones(mgrid_coords.shape[0], 1) * times[i]
-    x_coords = torch.ones(mgrid_coords.shape[0], 1) * (8.0 - beta['x'])/alpha['x']
-    y_coords = torch.ones(mgrid_coords.shape[0], 1) * (-8.0 - beta['y'])/alpha['y']
-    theta_coords = torch.ones(mgrid_coords.shape[0], 1) * (1.22 - beta['th'])/alpha['th']
-    v_coords = torch.ones(mgrid_coords.shape[0], 1) * (1.62 - beta['v'])/alpha['v']
+    x_coords = torch.ones(mgrid_coords.shape[0], 1) * (10.0 - beta['x'])/alpha['x']
+    y_coords = torch.ones(mgrid_coords.shape[0], 1) * (0.0 - beta['y'])/alpha['y']
+    theta_coords = torch.ones(mgrid_coords.shape[0], 1) * (0.0 - beta['th'])/alpha['th']
+    v_r_coords = torch.ones(mgrid_coords.shape[0], 1) * (9.0 - beta['v'])/alpha['v']
+    v_h_coords = torch.ones(mgrid_coords.shape[0], 1) * (9.0 - beta['v'])/alpha['v']
 
-    amin1_coords = torch.ones(mgrid_coords.shape[0], 1) * (0.22 - beta['a'])/alpha['a'] 
-    amax1_coords = torch.ones(mgrid_coords.shape[0], 1) * (1.22 - beta['a'])/alpha['a'] 
-    amin2_coords = torch.ones(mgrid_coords.shape[0], 1) * (-8.04 - beta['a'])/alpha['a'] 
-    amax2_coords = torch.ones(mgrid_coords.shape[0], 1) * (9.69 - beta['a'])/alpha['a'] 
 
-    omin1_coords = torch.ones(mgrid_coords.shape[0], 1) * (.329 - beta['o'])/alpha['o']
-    omax1_coords = torch.ones(mgrid_coords.shape[0], 1) * (0.6 - beta['o'])/alpha['o']
+    amin1_coords = torch.ones(mgrid_coords.shape[0], 1) * (-12. - beta['a'])/alpha['a'] 
+    amax1_coords = torch.ones(mgrid_coords.shape[0], 1) * (10.7 - beta['a'])/alpha['a'] 
+    amin2_coords = torch.ones(mgrid_coords.shape[0], 1) * (-7.05 - beta['a'])/alpha['a'] 
+    amax2_coords = torch.ones(mgrid_coords.shape[0], 1) * (8.4 - beta['a'])/alpha['a'] 
+
+    omin1_coords = torch.ones(mgrid_coords.shape[0], 1) * (.195 - beta['o'])/alpha['o']
+    omax1_coords = torch.ones(mgrid_coords.shape[0], 1) * (0.782 - beta['o'])/alpha['o']
     for j in range(num_controls):
-      omin2_coords = torch.ones(mgrid_coords.shape[0], 1) * (-0.09 - beta['o'])/alpha['o']
-      omax2_coords = torch.ones(mgrid_coords.shape[0], 1) * (0.755  - beta['o'])/alpha['o']
-      coords = torch.cat((time_coords, mgrid_coords,theta_coords,v_coords, x_coords, y_coords, amin1_coords, amax1_coords,omin1_coords, omax1_coords,amin2_coords, amax2_coords,omin2_coords, omax2_coords), dim=1) 
+      omin2_coords = torch.ones(mgrid_coords.shape[0], 1) * (0.246 - beta['o'])/alpha['o']
+      omax2_coords = torch.ones(mgrid_coords.shape[0], 1) * (0.525  - beta['o'])/alpha['o']
+      coords = torch.cat((time_coords, mgrid_coords,theta_coords,v_r_coords, v_h_coords, amin1_coords, amax1_coords,omin1_coords, omax1_coords,amin2_coords, amax2_coords,omin2_coords, omax2_coords), dim=1) 
       #coords = torch.cat((time_coords, mgrid_coords, x_coords, y_coords, umin2_coords, umax2_coords), dim=1) 
 
       model_in = {'coords': coords.cuda()}
@@ -165,7 +165,6 @@ def val_fn(model, ckpt_dir, epoch):
       ax.set_title('t = %0.2f, omax2 = %0.2f' % (times[i]*3., controls[j]))
       s = ax.imshow(model_out.T, cmap='bwr', origin='lower', extent=(-alpha['x'], alpha['x'], -alpha['y'], alpha['y']), aspect=(alpha['x']/alpha['y']), vmin=-1., vmax=1.)
       fig.colorbar(s) 
-      ax.set_aspect('equal')
 
   fig.savefig(os.path.join(ckpt_dir, 'BRS_validation_plot_epoch_%04d.png' % epoch))
   
