@@ -74,11 +74,10 @@ if opt.counter_start == -1:
 if opt.counter_end == -1:
   opt.counter_end = opt.num_epochs
 
-dataset = dataio.ReachabilityDubins4DForwardParam2SetScaled(numpoints=65000, collisionR=opt.collisionR, velocity=opt.velocity, 
-                                          omega_max=opt.omega_max, pretrain=opt.pretrain, tMin=opt.tMin,
+dataset = dataio.ReachabilityDubins4DForwardParam2SetScaled(numpoints=65000, collisionR=opt.collisionR, 
+                                          pretrain=opt.pretrain, tMin=opt.tMin,
                                           tMax=opt.tMax, counter_start=opt.counter_start, counter_end=opt.counter_end,
-                                          pretrain_iters=opt.pretrain_iters, seed=opt.seed,
-                                          angle_alpha=opt.angle_alpha,
+                                          pretrain_iters=opt.pretrain_iters,
                                           num_src_samples=opt.num_src_samples, periodic_boundary = opt.periodic_boundary, diffModel=opt.diffModel)
 
 dataloader = DataLoader(dataset, shuffle=True, batch_size=opt.batch_size, pin_memory=True, num_workers=0)

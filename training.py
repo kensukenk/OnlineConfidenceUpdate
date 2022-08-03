@@ -134,8 +134,12 @@ def train(model, train_dataloader, epochs, lr, steps_til_summary, epochs_til_che
                     if loss_schedules is not None and loss_name in loss_schedules:
                         writer.add_scalar(loss_name + "_weight", loss_schedules[loss_name](total_steps), total_steps)
                         single_loss *= loss_schedules[loss_name](total_steps)
-
-                    writer.add_scalar(loss_name, single_loss, total_steps)
+                    if loss_name == 'dirichlet':
+                        writer.add_scalar(loss_name, single_loss/new_weight1, total_steps)
+                    elif loss_name == 'periodicity':
+                        writer.add_scalar(loss_name, single_loss/new_weight2, total_steps)
+                    else:
+                        writer.add_scalar(loss_name, single_loss, total_steps)
                     train_loss += single_loss
 
                 train_losses.append(train_loss.item())
