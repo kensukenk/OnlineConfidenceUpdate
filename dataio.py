@@ -819,6 +819,7 @@ class ReachabilityDubins4DForwardParam2SetScaled(Dataset):
 
     def time_control(self, time, set1, set2):
         time_control = (1.0 - time)*set1 + (time)*set2
+        #time_control = torch.where(time > 1.0, set2, time_control)
         return time_control
 
     def compute_IC(self, state_coords):
@@ -956,211 +957,6 @@ class ReachabilityDubins4DForwardParam2SetScaled(Dataset):
         else:
             return {'coords': coords}, {'source_boundary_values': boundary_values, 'dirichlet_mask': dirichlet_mask}
 
-class ReachabilityDubins4DForwardParam2Set(Dataset):
-    def __init__(self, numpoints, 
-        collisionR=0.1, velocity=1.0, omega_max=1.1, 
-        pretrain=False, tMin=0.0, tMax=0.5, counter_start=0, counter_end=100e3, 
-        pretrain_iters=2000, angle_alpha=1.0, num_src_samples=1000, periodic_boundary=False, diffModel=False, seed=0):
-        super().__init__()
-        torch.manual_seed(0)
-
-        self.pretrain = pretrain
-        self.periodic_boundary = periodic_boundary
-        self.diffModel = diffModel
-        self.numpoints = numpoints
-        
-        self.collisionR = collisionR
-
-        self.num_states = 14 #states are x,y, theta, v, startx, starty, amin1, amax1, omegamin1, omegamax1, amin2, amax2, omegamin2, omegamax2
-        self.angle_index = 3
-
-        self.tMax = tMax
-        self.tMin = tMin
-
-        # Define state alphas and betas so that all coordinates are from [-1, 1]. 
-        # The conversion rule is state' = (state - beta)/alpha. state' is in [-1, 1].
-        self.alpha = {}
-        self.beta = {}
-        self.alpha['x'] = 4.0
-        self.alpha['y'] = 4.0
-        self.alpha['th'] = 1.2*math.pi
-        self.alpha['v'] = 4.0
-        self.alpha['a'] = 3.0
-        self.alpha['o'] = 3*math.pi
-        # self.alpha['time'] = 2.0/self.tMax
-        self.alpha['time'] = 1.0
-
-        self.beta['x'] = 0.0
-        self.beta['y'] = 0.0
-        self.beta['th'] = 0.0
-        self.beta['v'] = 3.0
-        self.beta['a'] = 0.0
-        self.beta['o'] = 1.0
-
-        # State bounds
-        self.vMin = 0.001
-        self.vMax = 6.50
-        #self.thMin = -0.3*math.pi + 0.001
-        #self.thMax = 0.3*math.pi - 0.001
-
-        self.N_src_samples = num_src_samples
-        self.N_boundary_pts = self.N_src_samples//2
-
-        self.pretrain_counter = 0
-        self.counter = counter_start
-        self.pretrain_iters = pretrain_iters
-        self.full_count = counter_end 
-
-        # Scale for output normalization
-        self.norm_to = 0.02
-        self.mean = 0.25 
-        self.var = 0.5 
-        # Set the seed
-        torch.manual_seed(seed)
-    
-    def time_control(self, time, set1, set2):
-        #time_control = ((self.alpha['time'] - time)* set1 + (time)*set2)/self.alpha['time']
-        #time_control = torch.where(time > self.alpha['time'], set2, time_control)
-
-        time_control = (1 - time)*set1 + (time)*set2
-        time_control = torch.where(time > 1.0, set2, time_control)
-        return time_control
-
-    def compute_overall_ham(self, x, dudx, return_components=False):
-        alpha = self.alpha
-        beta = self.beta
-
-        # Scale the costates appropriately.
-        dudx[..., 0] = dudx[..., 0] / alpha['x']
-        dudx[..., 1] = dudx[..., 1] / alpha['y']
-        dudx[..., 2] = dudx[..., 2] / alpha['th']
-        dudx[..., 3] = dudx[..., 3] / alpha['v']
-        
-        # Scale the states appropriately.
-        x_u = x * 1.0
-        #x_u[..., 0] = x_u[..., 0] * alpha['time']
-        x_u[..., 1] = x_u[..., 1] * alpha['x'] + beta['x']
-        x_u[..., 2] = x_u[..., 2] * alpha['y'] + beta['y']
-        x_u[..., 3] = x_u[..., 3] * alpha['th'] + beta['th']
-        x_u[..., 4] = x_u[..., 4] * alpha['v'] + beta['v']
-        x_u[..., 5] = x_u[..., 5] * alpha['x'] + beta['x']
-        x_u[..., 6] = x_u[..., 6] * alpha['y'] + beta['y']
-        x_u[..., 7] = x_u[..., 7] * alpha['a'] + beta['a']
-        x_u[..., 8] = x_u[..., 8] * alpha['a'] + beta['a']
-        x_u[..., 9] = x_u[..., 9] * alpha['o'] + beta['o']
-        x_u[..., 10] = x_u[..., 10] * alpha['o'] + beta['o']
-        x_u[..., 11] = x_u[..., 11] * alpha['a'] + beta['a']
-        x_u[..., 12] = x_u[..., 12] * alpha['a'] + beta['a']
-        x_u[..., 13] = x_u[..., 13] * alpha['o'] + beta['o']
-        x_u[..., 14] = x_u[..., 14] * alpha['o'] + beta['o']
-        
-
-        amin = self.time_control(x_u[...,0], x_u[...,7],x_u[...,11])
-        amax = self.time_control(x_u[...,0], x_u[...,8],x_u[...,12])
-        omin = -self.time_control(x_u[...,0], x_u[...,9],x_u[...,13])
-        omax = -self.time_control(x_u[...,0], x_u[...,10],x_u[...,14])
-        
-        zero_tensor = torch.Tensor([0]).cuda()
-        amin = torch.where((x_u[..., 4] <= self.vMin), zero_tensor, amin)
-        amax = torch.where((x_u[..., 4] >= self.vMax), zero_tensor, amax)
-        
-        o_opt = torch.where(dudx[...,2]>0, omax, omin)
-        a_opt = torch.where(dudx[...,3]>0, amax, amin)
-        # xdot = v cos theta
-        # ydot = v sin theta
-        # thetadot = o_opt
-        # vdot = a_opt
-        # negative dynamics since it is a FRS, want to minimize
-        ham = -dudx[...,0]*x_u[...,4]*(torch.cos(x_u[..., 3])) - dudx[...,1]*x_u[...,4]*(torch.sin(x_u[...,3]))
-        ham_o = -dudx[...,2]*o_opt
-        ham_a = -dudx[...,3]*a_opt
-        ham = ham + ham_a + ham_o
-        
-        return ham
-
-    def __len__(self):
-        return 1
-    
-    def compute_lx(self, state_coords_unnormalized):
-        # Compute the target boundary condition given the unnormalized state coordinates.
-        # Vehicle 1
-        goal_tensor_R1 = state_coords_unnormalized[:, 4:6]
-        dist_R1 = torch.norm(state_coords_unnormalized[:, 0:2] - goal_tensor_R1, dim=1, keepdim=True) - self.collisionR
-        return dist_R1
-    
-    def compute_IC(self, state_coords):
-        state_coords_unnormalized = state_coords * 1.0
-        state_coords_unnormalized[:, 0] = state_coords_unnormalized[:, 0] * self.alpha['x'] + self.beta['x']
-        state_coords_unnormalized[:, 1] = state_coords_unnormalized[:, 1] * self.alpha['y'] + self.beta['y']
-        state_coords_unnormalized[:, 4] = state_coords_unnormalized[:, 4] * self.alpha['x'] + self.beta['x'] # start x
-        state_coords_unnormalized[:, 5] = state_coords_unnormalized[:, 5] * self.alpha['y'] + self.beta['y'] # start y
-        
-       
-        lx = self.compute_lx(state_coords_unnormalized)
-        return lx
-
-    
-    def __getitem__(self, idx):
-        start_time = 0.  # time to apply  initial conditions
-
-        # uniformly sample domain and include coordinates where source is non-zero 
-        coords = torch.zeros(self.numpoints, self.num_states).uniform_(-1, 1)
-
-        if self.pretrain:
-            # only sample in time around the initial condition
-            time = torch.ones(self.numpoints, 1) * start_time
-            coords = torch.cat((time, coords), dim=1)
-        else:
-            # slowly grow time values from start time
-            time = self.tMin + torch.zeros(self.numpoints, 1).uniform_(0, (self.tMax-self.tMin) * (self.counter / self.full_count))
-            coords = torch.cat((time, coords), dim=1)
-
-            # make sure we always have training samples at the initial time
-            coords[-self.N_src_samples:, 0] = start_time
-
-        # Sample some points to impose the boundary coditions
-        if self.periodic_boundary:
-            # import ipdb; ipdb.set_trace()
-            coords_angle = torch.zeros(self.N_boundary_pts, 1).uniform_(math.pi-0.001, self.alpha['th']) # Sample near the right boundary
-            coords_angle[0:self.N_boundary_pts//2] = -1.0 * coords_angle[0:self.N_boundary_pts//2] # Assign half of the points to the left boundary
-            coords_angle_periodic = angle_normalize(coords_angle)
-            coords_angle_concatenated = torch.cat((coords_angle, coords_angle_periodic), dim=0)
-            coords_angle_concatenated_normalized = (coords_angle_concatenated)/self.alpha['th']
-            coords[:self.N_boundary_pts] = coords[self.N_boundary_pts:2*self.N_boundary_pts]
-            coords[:2*self.N_boundary_pts, self.angle_index] = coords_angle_concatenated_normalized[..., 0]  
-
-
-        # Compute the initial value function
-        if self.diffModel:
-            coords_var = torch.tensor(coords.clone(), requires_grad=True)
-            boundary_values = self.compute_IC(coords_var[:, 1:])
-            boundary_values = (boundary_values - self.mean)*self.norm_to/self.var
-            lx_grads = diff_operators.gradient(boundary_values, coords_var)[..., 1:5]
-
-        else:
-            # lx, gx, boundary_values = self.compute_IC(coords[:, 1:])
-            boundary_values = self.compute_IC(coords[:, 1:])
-            boundary_values = (boundary_values - self.mean)*self.norm_to/self.var
-
-
-        if self.pretrain:
-            dirichlet_mask = torch.ones(coords.shape[0], 1) > 0
-        else:
-            # only enforce initial conditions around start_time
-            dirichlet_mask = (coords[:, 0, None] == start_time)
-
-        if self.pretrain:
-            self.pretrain_counter += 1
-        elif self.counter < self.full_count:
-            self.counter += 1
-
-        if self.pretrain and self.pretrain_counter == self.pretrain_iters:
-            self.pretrain = False
-
-        if self.diffModel:
-            return {'coords': coords}, {'source_boundary_values': boundary_values, 'dirichlet_mask': dirichlet_mask, 'lx_grads': lx_grads}
-        else:
-            return {'coords': coords}, {'source_boundary_values': boundary_values, 'dirichlet_mask': dirichlet_mask}
 
 
 class ReachabilityDubins4DReachAvoidParam2SetScaled(Dataset):
@@ -1174,9 +970,8 @@ class ReachabilityDubins4DReachAvoidParam2SetScaled(Dataset):
         self.pretrain = pretrain
         self.periodic_boundary = periodic_boundary
         self.diffModel = diffModel
+
         self.numpoints = numpoints
-        
-        self.collisionR = collisionR
 
         self.num_states = 13 #states are x_rel,y_rel, theta_rel, v_r, v_h, amin1, amax1, omegamin1, omegamax1, amin2, amax2, omegamin2, omegamax2
         self.angle_index = 3
@@ -1191,21 +986,31 @@ class ReachabilityDubins4DReachAvoidParam2SetScaled(Dataset):
         self.alpha['x'] = 10.0
         self.alpha['y'] = 10.0
         self.alpha['th'] = 1.2*math.pi
-        self.alpha['v'] = 25.0
-        self.alpha['a'] = 14.0
+        self.alpha['v'] = 7.5
+        self.alpha['a'] = 10.0
         self.alpha['o'] = 3.*math.pi
         self.alpha['time'] = 3.0
 
         self.beta['x'] = 0.0
         self.beta['y'] = 0.0
         self.beta['th'] = 0.0
-        self.beta['v'] = 25.0
+        self.beta['v'] = 7.5
         self.beta['a'] = 0.0
         self.beta['o'] = 0.0
 
         # State bounds
         self.aMax = 11.0
         self.wMax = 3.0
+
+        self.collisionR = collisionR
+
+        # Scale for output normalization 
+        # TODO FIX THIS
+        self.norm_to = 0.02
+        self.mean = 6.0
+        self.var = 7.0
+        # Set the seed
+
 
         self.N_src_samples = num_src_samples
         self.N_boundary_pts = self.N_src_samples//2
@@ -1214,19 +1019,27 @@ class ReachabilityDubins4DReachAvoidParam2SetScaled(Dataset):
         self.counter = counter_start
         self.pretrain_iters = pretrain_iters
         self.full_count = counter_end 
-
-        # Scale for output normalization
-        self.norm_to = 0.02
-        self.mean = 0.25 
-        self.var = 0.5 
-        # Set the seed
         torch.manual_seed(seed)
+
+    def __len__(self):
+        return 1
     
     def time_control(self, time, set1, set2):
-        
         time_control = (1 - time)*set1 + (time)*set2
-        time_control = torch.where(time > 1.0, set2, time_control)
+        #time_control = torch.where(time > 1.0, set2, time_control)
         return time_control
+
+    def compute_lx(self, state_coords_unnormalized):
+        dist_R1 = torch.norm(state_coords_unnormalized[:, 0:2], dim=1, keepdim=True) - self.collisionR
+        return dist_R1
+    
+    def compute_IC(self, state_coords):
+        state_coords_unnormalized = state_coords * 1.0
+        state_coords_unnormalized[:, 0] = state_coords_unnormalized[:, 0] * self.alpha['x'] + self.beta['x']
+        state_coords_unnormalized[:, 1] = state_coords_unnormalized[:, 1] * self.alpha['y'] + self.beta['y']
+        
+        lx = self.compute_lx(state_coords_unnormalized)
+        return lx
 
     def compute_overall_ham(self, x, dudx, return_components=False):
         alpha = self.alpha
@@ -1279,29 +1092,21 @@ class ReachabilityDubins4DReachAvoidParam2SetScaled(Dataset):
         ham = ham1+ham2+ham3+ham4+ham5+ham6
         return ham
 
-    def __len__(self):
-        return 1
-    
-    def compute_lx(self, state_coords_unnormalized):
-        # Compute the target boundary condition given the unnormalized state coordinates.
-        # Vehicle 1
-        dist_R1 = torch.norm(state_coords_unnormalized[:, 0:2], dim=1, keepdim=True) - self.collisionR
-        return dist_R1
-    
-    def compute_IC(self, state_coords):
-        state_coords_unnormalized = state_coords * 1.0
-        state_coords_unnormalized[:, 0] = state_coords_unnormalized[:, 0] * self.alpha['x'] + self.beta['x']
-        state_coords_unnormalized[:, 1] = state_coords_unnormalized[:, 1] * self.alpha['y'] + self.beta['y']
-        
-        lx = self.compute_lx(state_coords_unnormalized)
-        return lx
-
     
     def __getitem__(self, idx):
         start_time = 0.  # time to apply  initial conditions
 
         # uniformly sample domain and include coordinates where source is non-zero 
         coords = torch.zeros(self.numpoints, self.num_states).uniform_(-1, 1)
+
+        # Make sure that the oMax and aMax are greater than oMin and aMin respectively. 
+        # Shifting the sampling to [aMin, 1] and [oMin, 1] for aMax and oMax respectively
+        coords[..., 6] =  (0.5 * (1 - coords[..., 5]) * coords[..., 6]) + (0.5 * (1 + coords[..., 5]))
+        coords[..., 10] = (0.5 * (1 - coords[..., 9]) * coords[..., 10]) + (0.5 * (1 + coords[..., 9]))
+        coords[..., 8] = (0.5 * (1 - coords[..., 7]) * coords[..., 8]) + (0.5 * (1 + coords[..., 7])) 
+        coords[..., 12] = (0.5 * (1 - coords[..., 11]) * coords[..., 12]) + (0.5 * (1 + coords[..., 11]))
+
+
 
         if self.pretrain:
             # only sample in time around the initial condition
@@ -1330,16 +1135,23 @@ class ReachabilityDubins4DReachAvoidParam2SetScaled(Dataset):
         # Compute the initial value function
         if self.diffModel:
             coords_var = torch.tensor(coords.clone(), requires_grad=True)
-            boundary_values = self.compute_IC(coords_var[:, 1:])
+            boundary_values = self.compute_IC(coords_var[..., 1:])
+            
+            # Normalize the value function
+            #print('Min and max value before normalization are %0.4f and %0.4f' %(min(boundary_values), max(boundary_values)))
             boundary_values = (boundary_values - self.mean)*self.norm_to/self.var
+            #print('Min and max value after normalization are %0.4f and %0.4f' %(min(boundary_values), max(boundary_values)))
+
+            # Compute the gradients of the value function
             lx_grads = diff_operators.gradient(boundary_values, coords_var)[..., 1:6]
-
         else:
-            # lx, gx, boundary_values = self.compute_IC(coords[:, 1:])
-            boundary_values = self.compute_IC(coords[:, 1:])
+            boundary_values = self.compute_IC(coords[..., 1:])
+
+            # Normalize the value function
+            # print('Min and max value before normalization are %0.4f and %0.4f' %(min(boundary_values), max(boundary_values)))
             boundary_values = (boundary_values - self.mean)*self.norm_to/self.var
-
-
+            # print('Min and max value after normalization are %0.4f and %0.4f' %(min(boundary_values), max(boundary_values)))
+        
         if self.pretrain:
             dirichlet_mask = torch.ones(coords.shape[0], 1) > 0
         else:
@@ -1358,4 +1170,3 @@ class ReachabilityDubins4DReachAvoidParam2SetScaled(Dataset):
             return {'coords': coords}, {'source_boundary_values': boundary_values, 'dirichlet_mask': dirichlet_mask, 'lx_grads': lx_grads}
         else:
             return {'coords': coords}, {'source_boundary_values': boundary_values, 'dirichlet_mask': dirichlet_mask}
-        
