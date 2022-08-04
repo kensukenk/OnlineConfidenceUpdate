@@ -100,15 +100,31 @@ beta = dataset.beta
 root_path = os.path.join(opt.logging_root, opt.experiment_name)
 def val_fn(model, ckpt_dir, epoch):
   # Time values at which the function needs to be plotted
-  times = [0., 0.2, 0.4, 0.6, 0.8, 1.0]
+  times = [0., 0.1*opt.tMax, 0.25*opt.tMax, 0.5*opt.tMax, opt.tMax-0.1]
   num_times = len(times)
 
-  # xy slices to be plotted
-  controls = [2.]
-  num_controls = len(controls)
+  # Velocity and theta
+  v = 1.62
+  th = 1.22
+
+  # Parameter slices to be plotted
+  aMin1 = [0, 0.22, 0, 0.22]
+  aMax1 = [0, 1.22, 0, 1.22]
+  oMin1 = [0, 0.329, 0, 0.329]
+  oMax1 = [0, 0.6, 0, 0.6]
+
+  aMin2 = [0, -8.04, 0, -8.04]
+  aMax2 = [0, 9.69, 0, 9.69]
+  oMin2 = [0, -0.09, 0, -0.09]
+  oMax2 = [0, 0.755, 0, 0.755]
+
+  startX = [8.0, 8.0, 0.0, 0.0]
+  startY = [-8.0, -8.0, 0.0, 0.0]
+  
+  num_params = len(startX)
 
   # Create a figure
-  fig = plt.figure(figsize=(5*num_controls, 5*num_times))
+  fig = plt.figure(figsize=(5*num_times, 5*num_params))
 
   # Get the meshgrid in the (x, y) coordinate
   sidelen = 200
@@ -117,24 +133,31 @@ def val_fn(model, ckpt_dir, epoch):
   # Start plotting the results
   for i in range(num_times):
     time_coords = torch.ones(mgrid_coords.shape[0], 1) * times[i]
-    x_coords = torch.ones(mgrid_coords.shape[0], 1) * (8.0 - beta['x'])/alpha['x']
-    y_coords = torch.ones(mgrid_coords.shape[0], 1) * (-8.0 - beta['y'])/alpha['y']
-    theta_coords = torch.ones(mgrid_coords.shape[0], 1) * (1.22 - beta['th'])/alpha['th']
-    v_coords = torch.ones(mgrid_coords.shape[0], 1) * (1.62 - beta['v'])/alpha['v']
+    
+    for j in range(num_params):
+      # State coords
+      theta_coords = (torch.ones(mgrid_coords.shape[0], 1) * th - beta['th'])/alpha['th']
+      v_coords = (torch.ones(mgrid_coords.shape[0], 1) * v - beta['v'])/alpha['v']
+      coords = torch.cat((time_coords, mgrid_coords, theta_coords, v_coords), dim=1) 
 
-    amin1_coords = torch.ones(mgrid_coords.shape[0], 1) * (0.22 - beta['a'])/alpha['a'] 
-    amax1_coords = torch.ones(mgrid_coords.shape[0], 1) * (1.22 - beta['a'])/alpha['a'] 
-    amin2_coords = torch.ones(mgrid_coords.shape[0], 1) * (-8.04 - beta['a'])/alpha['a'] 
-    amax2_coords = torch.ones(mgrid_coords.shape[0], 1) * (9.69 - beta['a'])/alpha['a'] 
+      # Initial position coords
+      startX_coords = (torch.ones(mgrid_coords.shape[0], 1) * startX[j] - beta['x'])/alpha['x']
+      startY_coords = (torch.ones(mgrid_coords.shape[0], 1) * startY[j] - beta['y'])/alpha['y']
+      coords = torch.cat((coords, startX_coords, startY_coords), dim=1) 
 
-    omin1_coords = torch.ones(mgrid_coords.shape[0], 1) * (.329 - beta['o'])/alpha['o']
-    omax1_coords = torch.ones(mgrid_coords.shape[0], 1) * (0.6 - beta['o'])/alpha['o']
-    for j in range(num_controls):
-      omin2_coords = torch.ones(mgrid_coords.shape[0], 1) * (-0.09 - beta['o'])/alpha['o']
-      omax2_coords = torch.ones(mgrid_coords.shape[0], 1) * (0.755  - beta['o'])/alpha['o']
-      coords = torch.cat((time_coords, mgrid_coords,theta_coords,v_coords, x_coords, y_coords, amin1_coords, amax1_coords,omin1_coords, omax1_coords,amin2_coords, amax2_coords,omin2_coords, omax2_coords), dim=1) 
-      #coords = torch.cat((time_coords, mgrid_coords, x_coords, y_coords, umin2_coords, umax2_coords), dim=1) 
+      # Initial control bounds
+      aMin1_coords = (torch.ones(mgrid_coords.shape[0], 1) * aMin1[j] - beta['a'])/alpha['a']
+      aMax1_coords = (torch.ones(mgrid_coords.shape[0], 1) * aMax1[j] - beta['a'])/alpha['a']
+      oMin1_coords = (torch.ones(mgrid_coords.shape[0], 1) * oMin1[j] - beta['o'])/alpha['o']
+      oMax1_coords = (torch.ones(mgrid_coords.shape[0], 1) * oMax1[j] - beta['o'])/alpha['o']
+      coords = torch.cat((coords, aMin1_coords, aMax1_coords, oMin1_coords, oMax1_coords), dim=1) 
 
+      # Final control bounds
+      aMin2_coords = (torch.ones(mgrid_coords.shape[0], 1) * aMin2[j] - beta['a'])/alpha['a']
+      aMax2_coords = (torch.ones(mgrid_coords.shape[0], 1) * aMax2[j] - beta['a'])/alpha['a']
+      oMin2_coords = (torch.ones(mgrid_coords.shape[0], 1) * oMin2[j] - beta['o'])/alpha['o']
+      oMax2_coords = (torch.ones(mgrid_coords.shape[0], 1) * oMax2[j] - beta['o'])/alpha['o']
+      coords = torch.cat((coords, aMin2_coords, aMax2_coords, oMin2_coords, oMax2_coords), dim=1) 
       model_in = {'coords': coords.cuda()}
       model_out = model(model_in)['model_out']
 
@@ -160,8 +183,8 @@ def val_fn(model, ckpt_dir, epoch):
       model_out = (model_out <= 0.001)*1.
 
       # Plot the actual data
-      ax = fig.add_subplot(num_times, num_controls, (j+1) + i*num_controls)
-      ax.set_title('t = %0.2f, omax2 = %0.2f' % (times[i]*3., controls[j]))
+      ax = fig.add_subplot(num_times, num_params, (j+1) + i*num_params)
+      ax.set_title('t = %0.2f' % (times[i]))
       s = ax.imshow(model_out.T, cmap='bwr', origin='lower', extent=(-alpha['x'], alpha['x'], -alpha['y'], alpha['y']), aspect=(alpha['x']/alpha['y']), vmin=-1., vmax=1.)
       fig.colorbar(s) 
       ax.set_aspect('equal')
