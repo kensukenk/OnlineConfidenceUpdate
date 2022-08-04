@@ -74,7 +74,7 @@ if opt.counter_start == -1:
 if opt.counter_end == -1:
   opt.counter_end = opt.num_epochs
 
-dataset = dataio.ReachabilityDubins4DForwardParam(numpoints=65000, collisionR=opt.collisionR, velocity=opt.velocity, 
+dataset = dataio.ReachabilityDubins4DForwardParam6set(numpoints=65000, collisionR=opt.collisionR, velocity=opt.velocity, 
                                           omega_max=opt.omega_max, pretrain=opt.pretrain, tMin=opt.tMin,
                                           tMax=opt.tMax, counter_start=opt.counter_start, counter_end=opt.counter_end,
                                           pretrain_iters=opt.pretrain_iters, seed=opt.seed,
@@ -117,10 +117,10 @@ def val_fn(model, ckpt_dir, epoch):
 
   # Start plotting the results
   for i in range(num_times):
-    time_coords = torch.ones(mgrid_coords.shape[0], 1) * times[i]
-    x_coords = torch.ones(mgrid_coords.shape[0], 1) * 0.0
-    y_coords = torch.ones(mgrid_coords.shape[0], 1) * 0.0
-    theta_coords = torch.ones(mgrid_coords.shape[0], 1) * 0.0
+    time_coords = torch.ones(mgrid_coords.shape[0], 1) * times[i]/alpha['time']
+    x_coords = torch.ones(mgrid_coords.shape[0], 1) * (0.0 - beta['x'])/alpha['x']
+    y_coords = torch.ones(mgrid_coords.shape[0], 1) * (0.0 - beta['y'])/alpha['y']
+    theta_coords = torch.ones(mgrid_coords.shape[0], 1) * (0. - beta['th'])/alpha['th']
     v_coords = torch.ones(mgrid_coords.shape[0], 1) * (3.0 - beta['v'])/alpha['v']
 
     amin1_coords = torch.ones(mgrid_coords.shape[0], 1) * (0.0 - beta['a'])/alpha['a'] 
