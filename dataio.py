@@ -861,8 +861,8 @@ class ReachabilityDubins4DForwardParam2SetScaled(Dataset):
         
         amin = self.time_control(x_u[...,0], x_u[...,7], x_u[...,11])
         amax = self.time_control(x_u[...,0], x_u[...,8], x_u[...,12])
-        omin = self.time_control(x_u[...,0], x_u[...,9], x_u[...,13])
-        omax = self.time_control(x_u[...,0], x_u[...,10], x_u[...,14])
+        omin = -self.time_control(x_u[...,0], x_u[...,9], x_u[...,13])
+        omax = -self.time_control(x_u[...,0], x_u[...,10], x_u[...,14])
         
         # Negative dynamics since it is a FRS; controls want to minimize
         # xdot = -v cos theta
@@ -880,9 +880,9 @@ class ReachabilityDubins4DForwardParam2SetScaled(Dataset):
         ham_a = -dudx[...,3]*a_opt
         ham = ham + ham_a + ham_o
         zero_tensor = torch.tensor(0.).cuda()
-        ham = torch.where(torch.abs(x_u[..., 1]) > self.gamma, zero_tensor, ham) # x dim padding
-        ham = torch.where(torch.abs(x_u[..., 2]) > self.gamma, zero_tensor, ham) # y dim padding
-        ham = torch.where(torch.abs(x_u[..., 4]) > self.gamma, zero_tensor, ham) # v dim padding
+        ham = torch.where(torch.abs(x[..., 1]) > self.gamma, zero_tensor, ham) # x dim padding
+        ham = torch.where(torch.abs(x[..., 2]) > self.gamma, zero_tensor, ham) # y dim padding
+        ham = torch.where(torch.abs(x[..., 4]) > self.gamma, zero_tensor, ham) # v dim padding
         return ham
 
     def __getitem__(self, idx):
