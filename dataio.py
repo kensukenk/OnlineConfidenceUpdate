@@ -861,8 +861,8 @@ class ReachabilityDubins4DForwardParam2SetScaled(Dataset):
         
         amin = self.time_control(x_u[...,0], x_u[...,7], x_u[...,11])
         amax = self.time_control(x_u[...,0], x_u[...,8], x_u[...,12])
-        omin = -self.time_control(x_u[...,0], x_u[...,9], x_u[...,13])
-        omax = -self.time_control(x_u[...,0], x_u[...,10], x_u[...,14])
+        omin = self.time_control(x_u[...,0], x_u[...,9], x_u[...,13])
+        omax = self.time_control(x_u[...,0], x_u[...,10], x_u[...,14])
         
         # Negative dynamics since it is a FRS; controls want to minimize
         # xdot = -v cos theta
@@ -871,8 +871,8 @@ class ReachabilityDubins4DForwardParam2SetScaled(Dataset):
         # vdot = -a
 
         # Optimal control
-        o_opt = torch.where(-dudx[...,2] > 0, omin, omax)
-        a_opt = torch.where(-dudx[...,3] > 0, amin, amax)
+        o_opt = torch.where(dudx[...,2] > 0, -omax, -omin)
+        a_opt = torch.where(dudx[...,3] > 0, -amin, -amax)
         
         # Hamiltonian
         ham = -dudx[...,0]*x_u[...,4]*(torch.cos(x_u[..., 3])) - dudx[...,1]*x_u[...,4]*(torch.sin(x_u[...,3]))
