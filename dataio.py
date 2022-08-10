@@ -789,7 +789,7 @@ class ReachabilityDubins4DForwardParam2SetScaled(Dataset):
         self.alpha['v'] = 7.5
         self.alpha['a'] = 10.0
         self.alpha['o'] = 3.*math.pi
-        self.alpha['time'] = alphaT
+        self.alpha['time'] = 3.0
 
         self.beta['x'] = 0.0
         self.beta['y'] = 0.0
