@@ -870,7 +870,7 @@ class ReachabilityDubins4DForwardParam2SetScaled(Dataset):
         # vdot = -a
 
         # Optimal control
-        o_opt = torch.where(dudx[...,2] > 0, -omax, -omin)
+        o_opt = torch.where(dudx[...,2] > 0, -omin, -omax)
         a_opt = torch.where(dudx[...,3] > 0, -amin, -amax)
         
         # Hamiltonian
