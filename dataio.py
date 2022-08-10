@@ -791,7 +791,7 @@ class ReachabilityDubins4DForwardParam2SetScaled(Dataset):
         self.alpha['v'] = 7.5 / self.gamma
         self.alpha['a'] = 10.0
         self.alpha['o'] = 3.*math.pi
-        self.alpha['time'] = alphaT
+        self.alpha['time'] = 3.0
 
         self.beta['x'] = 0.0
         self.beta['y'] = 0.0
@@ -871,7 +871,7 @@ class ReachabilityDubins4DForwardParam2SetScaled(Dataset):
         # vdot = -a
 
         # Optimal control
-        o_opt = torch.where(dudx[...,2] > 0, -omax, -omin)
+        o_opt = torch.where(dudx[...,2] > 0, -omin, -omax)
         a_opt = torch.where(dudx[...,3] > 0, -amin, -amax)
         
         # Hamiltonian
