@@ -783,8 +783,8 @@ class ReachabilityDubins4DForwardParam2SetScaled(Dataset):
         self.alpha = {}
         self.beta = {}
 
-        self.alpha['x'] = 10.0
-        self.alpha['y'] = 10.0
+        self.alpha['x'] = 4.0
+        self.alpha['y'] = 4.0
         self.alpha['th'] = 1.2*math.pi
         self.alpha['v'] = 7.5
         self.alpha['a'] = 10.0
@@ -800,8 +800,8 @@ class ReachabilityDubins4DForwardParam2SetScaled(Dataset):
 
         # Normalization for the value function
         self.norm_to = 0.02
-        self.mean = 13.0
-        self.var = 14.0
+        self.mean = 5.0
+        self.var = 5.5
 
         # Collision radius
         self.collisionR = collisionR
@@ -924,9 +924,9 @@ class ReachabilityDubins4DForwardParam2SetScaled(Dataset):
             boundary_values = self.compute_IC(coords_var[..., 1:])
             
             # Normalize the value function
-            # print('Min and max value before normalization are %0.4f and %0.4f' %(min(boundary_values), max(boundary_values)))
+            #print('Min and max value before normalization are %0.4f and %0.4f' %(min(boundary_values), max(boundary_values)))
             boundary_values = (boundary_values - self.mean)*self.norm_to/self.var
-            # print('Min and max value after normalization are %0.4f and %0.4f' %(min(boundary_values), max(boundary_values)))
+            #print('Min and max value after normalization are %0.4f and %0.4f' %(min(boundary_values), max(boundary_values)))
 
             # Compute the gradients of the value function
             lx_grads = diff_operators.gradient(boundary_values, coords_var)[..., 1:5]

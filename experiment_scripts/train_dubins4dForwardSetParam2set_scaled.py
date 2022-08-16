@@ -109,22 +109,22 @@ def val_fn(model, ckpt_dir, epoch):
   num_times = len(times)
 
   # Velocity and theta
-  v = 1.62
+  v = 1.62/alpha['time']
   th = 1.22
 
   # Parameter slices to be plotted
   aMin1 = [0, 0.22, 0, 0.22]
   aMax1 = [0, 1.22, 0, 1.22]
-  oMin1 = [0, 0.329, 0, 0.329]
-  oMax1 = [0, 0.6, 0, 0.6]
+  oMin1 = [0, 0.329*alpha['time'], 0, 0.329*alpha['time']]
+  oMax1 = [0, 0.6*alpha['time'], 0, 0.6*alpha['time']]
 
   aMin2 = [0, -8.04, 0, -8.04]
   aMax2 = [0, 9.69, 0, 9.69]
-  oMin2 = [0, -0.09, 0, -0.09]
-  oMax2 = [0, 0.755, 0, 0.755]
+  oMin2 = [0, -0.09*alpha['time'], 0, -0.09*alpha['time']]
+  oMax2 = [0, 0.755*alpha['time'], 0, 0.755*alpha['time']]
 
-  startX = [8.0, 8.0, 0.0, 0.0]
-  startY = [-8.0, -8.0, 0.0, 0.0]
+  startX = [-1.5, -1.5, 0.0, 0.0]
+  startY = [-1.5, -1.5, 0.0, 0.0]
   
   num_params = len(startX)
 
