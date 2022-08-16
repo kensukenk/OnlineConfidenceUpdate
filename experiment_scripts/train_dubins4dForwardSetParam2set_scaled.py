@@ -39,8 +39,6 @@ p.add_argument('--mode', type=str, default='mlp', required=False, choices=['mlp'
 
 p.add_argument('--tMin', type=float, default=0.0, required=False, help='Start time of the simulation')
 p.add_argument('--tMax', type=float, default=1.0, required=False, help='End time of the simulation')
-p.add_argument('--alphaT', type=float, default=1.0, required=False, help='Time horizon nomalization.')
-
 p.add_argument('--num_hl', type=int, default=3, required=False, help='The number of hidden layers')
 p.add_argument('--num_nl', type=int, default=512, required=False, help='Number of neurons per hidden layer.')
 p.add_argument('--pretrain_iters', type=int, default=2000, required=False, help='Number of pretrain iterations')
@@ -92,7 +90,6 @@ loss_fn = loss_functions.initialize_hji_dubins4d_forward_param(dataset, opt.minW
 
 root_path = os.path.join(opt.logging_root, opt.experiment_name)
 
-
 # Validation function
 def val_fn(model, ckpt_dir, epoch):
   # Normalization coefficients
@@ -104,22 +101,26 @@ def val_fn(model, ckpt_dir, epoch):
   num_times = len(times)
 
   # Velocity and theta
-  start_v = 1.62
-  start_th = 1.22
+
+  v = 1.62/alpha['time']
+  th = 1.22
+
 
   # Parameter slices to be plotted
   aMin1 = [0, 0.22, 0, 0.22]
   aMax1 = [0, 1.22, 0, 1.22]
-  oMin1 = [0, 0.329, 0, 0.329]
-  oMax1 = [0, 0.6, 0, 0.6]
+
+  oMin1 = [0, 0.329*alpha['time'], 0, 0.329*alpha['time']]
+  oMax1 = [0, 0.6*alpha['time'], 0, 0.6*alpha['time']]
 
   aMin2 = [0, -8.04, 0, -8.04]
   aMax2 = [0, 9.69, 0, 9.69]
-  oMin2 = [0, -0.09, 0, -0.09]
-  oMax2 = [0, 0.755, 0, 0.755]
+  oMin2 = [0, -0.09*alpha['time'], 0, -0.09*alpha['time']]
+  oMax2 = [0, 0.755*alpha['time'], 0, 0.755*alpha['time']]
 
-  startX = [8.0, 8.0, 0.0, 0.0]
-  startY = [-8.0, -8.0, 0.0, 0.0]
+  startX = [-1.5, -1.5, 0.0, 0.0]
+  startY = [-1.5, -1.5, 0.0, 0.0]
+
   
   num_params = len(startX)
 
@@ -136,9 +137,9 @@ def val_fn(model, ckpt_dir, epoch):
     time_coords = torch.ones(mgrid_coords.shape[0], 1) * times[i]
 
     for j in range(num_params):
-      # State coords
-      
+      # State coords 
       coords = torch.cat((time_coords, mgrid_coords), dim=1) 
+
 
       # Initial position coords
       startX_coords = (torch.ones(mgrid_coords.shape[0], 1) * startX[j] - beta['x'])/alpha['x']
@@ -146,6 +147,7 @@ def val_fn(model, ckpt_dir, epoch):
       startTheta_coords = (torch.ones(mgrid_coords.shape[0], 1) * start_th - beta['th'])/alpha['th']
       startV_coords = (torch.ones(mgrid_coords.shape[0], 1) * start_v - beta['v'])/alpha['v']
       coords = torch.cat((coords, startX_coords, startY_coords, startTheta_coords, startV_coords), dim=1) 
+
 
       # Initial control bounds
       aMin1_coords = (torch.ones(mgrid_coords.shape[0], 1) * aMin1[j] - beta['a'])/alpha['a']
@@ -168,8 +170,10 @@ def val_fn(model, ckpt_dir, epoch):
       model_out = model_out.detach().cpu().numpy()
       model_out = model_out.reshape(sidelen)
 
+
+      # Unnormalize the value function
       model_out = (model_out*dataset.var/dataset.norm_to) + dataset.mean 
-      # Account for the diff model
+
       if opt.diffModel:
         lx = dataset.compute_IC(coords[..., 1:])
         lx = lx.detach().cpu().numpy()
@@ -184,6 +188,7 @@ def val_fn(model, ckpt_dir, epoch):
 
       model_out = np.min(model_out, axis = -1) # union over velocity
       model_out = np.min(model_out, axis = -1) # union over theta
+
 
       # Plot the zero level sets
       model_out = (model_out <= 0.001)*1.
