@@ -779,7 +779,7 @@ class ReachabilityDubins4DForwardParam2SetScaled(Dataset):
         self.numpoints = numpoints
         
         # Dynamics parameters
-        self.num_states = 16
+        self.num_states = 13
 
         # TIme parameters
         self.tMax = tMax
@@ -806,8 +806,8 @@ class ReachabilityDubins4DForwardParam2SetScaled(Dataset):
 
         # Normalization for the value function
         self.norm_to = 0.02
-        self.mean = 5.0
-        self.var = 5.5
+        self.mean = 7.25
+        self.var = 7.5
 
         # Collision radius
         self.collisionR = collisionR
@@ -832,22 +832,25 @@ class ReachabilityDubins4DForwardParam2SetScaled(Dataset):
         state_coords_unnormalized = state_coords * 1.0
         state_coords_unnormalized[..., 0] = state_coords_unnormalized[..., 0] * self.alpha['x'] + self.beta['x']
         state_coords_unnormalized[..., 1] = state_coords_unnormalized[..., 1] * self.alpha['y'] + self.beta['y']
-        state_coords_unnormalized[..., 4] = state_coords_unnormalized[..., 4] * self.alpha['x'] + self.beta['x']
-        state_coords_unnormalized[..., 5] = state_coords_unnormalized[..., 5] * self.alpha['y'] + self.beta['y']
-
+        
         state_coords_unnormalized[..., 2] = state_coords_unnormalized[..., 2] * self.alpha['th'] + self.beta['th']
         state_coords_unnormalized[..., 3] = state_coords_unnormalized[..., 3] * self.alpha['v'] + self.beta['v']
-        state_coords_unnormalized[..., 6] = state_coords_unnormalized[..., 6] * self.alpha['th'] + self.beta['th']
-        state_coords_unnormalized[..., 7] = state_coords_unnormalized[..., 7] * self.alpha['v'] + self.beta['v']
+
+        state_coords_unnormalized[..., 4] = state_coords_unnormalized[..., 4] * self.alpha['v'] + self.beta['v']
 
         # positional states from start
-        boundary_values1 = torch.norm(state_coords_unnormalized[:, 0:2] - state_coords_unnormalized[:, 4:6], dim=1, keepdim=True) - self.collisionR
-        boundary_values2 = torch.norm(state_coords_unnormalized[:, 2:4] - state_coords_unnormalized[:, 6:8], dim=1, keepdim=True) - 0.2*self.collisionR
-        
+        boundary_values1 = torch.norm(state_coords_unnormalized[..., 0:2], dim=-1, keepdim=True) - self.collisionR
+        # velocity from start
+        state_coords_unnormalized_thv = state_coords_unnormalized[..., 2:4] * 1.0
+        state_coords_unnormalized_thv[..., 1] = state_coords_unnormalized_thv[..., 1] - state_coords_unnormalized[..., 4]
+
+        boundary_values2 = torch.norm(state_coords_unnormalized_thv, dim=-1, keepdim=True) - self.collisionR * 2
+
         #boundary_values1 = torch.norm(state_coords_unnormalized[..., 0:2] - state_coords_unnormalized[..., 4:6], dim=-1, keepdim=True) - self.collisionR
         # theta and vel from start
         #boundary_values2 = torch.norm(state_coords_unnormalized[..., 2:4] - state_coords_unnormalized[..., 6:8], dim=-1, keepdim=True) - 0.2*self.collisionR
         boundary_values = torch.max(boundary_values1, boundary_values2)
+
         return boundary_values
 
     def compute_overall_ham(self, x, dudx):
@@ -866,24 +869,22 @@ class ReachabilityDubins4DForwardParam2SetScaled(Dataset):
         x_u[..., 2] = x_u[..., 2] * alpha['y'] + beta['y']
         x_u[..., 3] = x_u[..., 3] * alpha['th'] + beta['th']
         x_u[..., 4] = x_u[..., 4] * alpha['v'] + beta['v']
-        x_u[..., 5] = x_u[..., 5] * alpha['x'] + beta['x'] #start x
-        x_u[..., 6] = x_u[..., 6] * alpha['y'] + beta['y'] # start y
-        x_u[..., 7] = x_u[..., 7] * alpha['th'] + beta['th'] # start th
-        x_u[..., 8] = x_u[..., 8] * alpha['v'] + beta['v'] # start v
         
-        x_u[..., 9] = x_u[..., 9] * alpha['a'] + beta['a']
+        x_u[..., 5] = x_u[..., 4] * alpha['v'] + beta['v'] # start v
+        
+        x_u[..., 6] = x_u[..., 6] * alpha['a'] + beta['a']
+        x_u[..., 7] = x_u[..., 7] * alpha['a'] + beta['a']
+        x_u[..., 8] = x_u[..., 8] * alpha['o'] + beta['o']
+        x_u[..., 9] = x_u[..., 9] * alpha['o'] + beta['o']
         x_u[..., 10] = x_u[..., 10] * alpha['a'] + beta['a']
-        x_u[..., 11] = x_u[..., 11] * alpha['o'] + beta['o']
+        x_u[..., 11] = x_u[..., 11] * alpha['a'] + beta['a']
         x_u[..., 12] = x_u[..., 12] * alpha['o'] + beta['o']
-        x_u[..., 13] = x_u[..., 13] * alpha['a'] + beta['a']
-        x_u[..., 14] = x_u[..., 14] * alpha['a'] + beta['a']
-        x_u[..., 15] = x_u[..., 15] * alpha['o'] + beta['o']
-        x_u[..., 16] = x_u[..., 16] * alpha['o'] + beta['o']
+        x_u[..., 13] = x_u[..., 13] * alpha['o'] + beta['o']
         
-        amin = self.time_control(x_u[...,0], x_u[...,9], x_u[...,13])
-        amax = self.time_control(x_u[...,0], x_u[...,10], x_u[...,14])
-        omin = self.time_control(x_u[...,0], x_u[...,11], x_u[...,15])
-        omax = self.time_control(x_u[...,0], x_u[...,12], x_u[...,16])
+        amin = self.time_control(x_u[...,0], x_u[...,6], x_u[...,10])
+        amax = self.time_control(x_u[...,0], x_u[...,7], x_u[...,11])
+        omin = self.time_control(x_u[...,0], x_u[...,8], x_u[...,12])
+        omax = self.time_control(x_u[...,0], x_u[...,9], x_u[...,13])
         
         # Negative dynamics since it is a FRS; controls want to minimize
         # xdot = -v cos theta
@@ -905,17 +906,16 @@ class ReachabilityDubins4DForwardParam2SetScaled(Dataset):
     def __getitem__(self, idx):
         start_time = 0.  # time to apply  initial conditions
         angle_index = 3 # Index of the angle state
-        start_angle_index = 7 
 
         # uniformly sample domain and include coordinates where source is non-zero 
         coords = torch.zeros(self.numpoints, self.num_states).uniform_(-1, 1)
 
         # Make sure that the oMax and aMax are greater than oMin and aMin respectively. 
         # Shifting the sampling to [aMin, 1] and [oMin, 1] for aMax and oMax respectively
-        coords[..., 9] =  (0.5 * (1 - coords[..., 8]) * coords[..., 9]) + (0.5 * (1 + coords[..., 8]))
-        coords[..., 13] = (0.5 * (1 - coords[..., 12]) * coords[..., 13]) + (0.5 * (1 + coords[..., 12]))
-        coords[..., 11] = (0.5 * (1 - coords[..., 10]) * coords[..., 11]) + (0.5 * (1 + coords[..., 10])) 
-        coords[..., 15] = (0.5 * (1 - coords[..., 14]) * coords[..., 15]) + (0.5 * (1 + coords[..., 14]))
+        coords[..., 6] =  (0.5 * (1 - coords[..., 5]) * coords[..., 6]) + (0.5 * (1 + coords[..., 5]))
+        coords[..., 10] = (0.5 * (1 - coords[..., 9]) * coords[..., 10]) + (0.5 * (1 + coords[..., 9]))
+        coords[..., 8] = (0.5 * (1 - coords[..., 7]) * coords[..., 8]) + (0.5 * (1 + coords[..., 7])) 
+        coords[..., 12] = (0.5 * (1 - coords[..., 11]) * coords[..., 12]) + (0.5 * (1 + coords[..., 11]))
 
         if self.pretrain:
             # only sample in time around the initial condition
@@ -941,13 +941,6 @@ class ReachabilityDubins4DForwardParam2SetScaled(Dataset):
             coords[:self.N_boundary_pts] = coords[self.N_boundary_pts:2*self.N_boundary_pts]
             coords[:2*self.N_boundary_pts, angle_index] = coords_angle_concatenated_normalized[..., 0]
 
-            coords_angle = torch.zeros(self.N_boundary_pts, 1).uniform_(math.pi-0.001, self.alpha['th'] + self.beta['th']) # Sample near the right boundary
-            coords_angle[0:self.N_boundary_pts//2] = -1.0 * coords_angle[0:self.N_boundary_pts//2] # Assign half of the points to the left boundary
-            coords_angle_periodic = angle_normalize(coords_angle)
-            coords_angle_concatenated = torch.cat((coords_angle, coords_angle_periodic), dim=0)
-            coords_angle_concatenated_normalized = (coords_angle_concatenated - self.beta['th'])/self.alpha['th']
-            coords[:self.N_boundary_pts] = coords[self.N_boundary_pts:2*self.N_boundary_pts]
-            coords[:2*self.N_boundary_pts, start_angle_index] = coords_angle_concatenated_normalized[..., 0]
 
         # Compute the initial value function
         if self.diffModel:

@@ -81,7 +81,7 @@ dataset = dataio.ReachabilityDubins4DForwardParam2SetScaled(numpoints=65000, col
 
 dataloader = DataLoader(dataset, shuffle=True, batch_size=opt.batch_size, pin_memory=True, num_workers=0)
 
-model = modules.SingleBVPNet(in_features=17, out_features=1, type=opt.model, mode=opt.mode,
+model = modules.SingleBVPNet(in_features=14, out_features=1, type=opt.model, mode=opt.mode,
                              final_layer_factor=1., hidden_features=opt.num_nl, num_hidden_layers=opt.num_hl)
 model.cuda()
 
@@ -97,13 +97,12 @@ def val_fn(model, ckpt_dir, epoch):
   beta = dataset.beta
 
   # Time values at which the function needs to be plotted
-  times = [0., 0.1*opt.tMax, 0.25*opt.tMax, 0.5*opt.tMax, opt.tMax-0.1]
+  times = [0., 0.1*opt.tMax, 0.25*opt.tMax, 0.5*opt.tMax, 0.75*opt.tMax, opt.tMax-0.1]
   num_times = len(times)
 
   # Velocity and theta
 
-  v = 1.62/alpha['time']
-  th = 1.22
+  
 
 
   # Parameter slices to be plotted
@@ -118,11 +117,13 @@ def val_fn(model, ckpt_dir, epoch):
   oMin2 = [0, -0.09*alpha['time'], 0, -0.09*alpha['time']]
   oMax2 = [0, 0.755*alpha['time'], 0, 0.755*alpha['time']]
 
-  startX = [-1.5, -1.5, 0.0, 0.0]
-  startY = [-1.5, -1.5, 0.0, 0.0]
+  #startX = [-1.5, -1.5, 0.0, 0.0]
+  #startY = [-1.5, -1.5, 0.0, 0.0]
+  start_v = 1.62/alpha['time']
+  #start_th = 1.22
 
   
-  num_params = len(startX)
+  num_params = len(aMin1)
 
   # Create a figure
   fig = plt.figure(figsize=(5*num_times, 5*num_params))
@@ -142,11 +143,11 @@ def val_fn(model, ckpt_dir, epoch):
 
 
       # Initial position coords
-      startX_coords = (torch.ones(mgrid_coords.shape[0], 1) * startX[j] - beta['x'])/alpha['x']
-      startY_coords = (torch.ones(mgrid_coords.shape[0], 1) * startY[j] - beta['y'])/alpha['y']
-      startTheta_coords = (torch.ones(mgrid_coords.shape[0], 1) * start_th - beta['th'])/alpha['th']
+      #startX_coords = (torch.ones(mgrid_coords.shape[0], 1) * startX[j] - beta['x'])/alpha['x']
+      #startY_coords = (torch.ones(mgrid_coords.shape[0], 1) * startY[j] - beta['y'])/alpha['y']
+      #startTheta_coords = (torch.ones(mgrid_coords.shape[0], 1) * start_th - beta['th'])/alpha['th']
       startV_coords = (torch.ones(mgrid_coords.shape[0], 1) * start_v - beta['v'])/alpha['v']
-      coords = torch.cat((coords, startX_coords, startY_coords, startTheta_coords, startV_coords), dim=1) 
+      coords = torch.cat((coords, startV_coords), dim=1) 
 
 
       # Initial control bounds
