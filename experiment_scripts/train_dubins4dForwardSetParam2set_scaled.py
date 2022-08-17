@@ -130,7 +130,7 @@ def val_fn(model, ckpt_dir, epoch):
 
   # Get the meshgrid in the (x, y) coordinate
   sidelen = 100
-  sidelen = (100,100, 10, 10)
+  sidelen = (75,75, 7, 25)
   mgrid_coords = dataio.get_mgrid(sidelen, dim = 4)
 
   # Start plotting the results
