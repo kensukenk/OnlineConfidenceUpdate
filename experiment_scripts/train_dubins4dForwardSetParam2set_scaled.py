@@ -106,16 +106,16 @@ def val_fn(model, ckpt_dir, epoch):
 
 
   # Parameter slices to be plotted
-  aMin1 = [0, 0.22, 0, 0.22]
-  aMax1 = [0, 1.22, 0, 1.22]
+  aMin1 = [ 0, 0.22]
+  aMax1 = [0, 1.22]
 
-  oMin1 = [0, 0.329*alpha['time'], 0, 0.329*alpha['time']]
-  oMax1 = [0, 0.6*alpha['time'], 0, 0.6*alpha['time']]
+  oMin1 = [ 0, 0.329*alpha['time']]
+  oMax1 = [ 0, 0.6*alpha['time']]
 
-  aMin2 = [0, -8.04, 0, -8.04]
-  aMax2 = [0, 9.69, 0, 9.69]
-  oMin2 = [0, -0.09*alpha['time'], 0, -0.09*alpha['time']]
-  oMax2 = [0, 0.755*alpha['time'], 0, 0.755*alpha['time']]
+  aMin2 = [ 0, -8.04]
+  aMax2 = [0, 9.69]
+  oMin2 = [ 0, -0.09*alpha['time']]
+  oMax2 = [0, 0.755*alpha['time']]
 
   #startX = [-1.5, -1.5, 0.0, 0.0]
   #startY = [-1.5, -1.5, 0.0, 0.0]
@@ -126,7 +126,7 @@ def val_fn(model, ckpt_dir, epoch):
   num_params = len(aMin1)
 
   # Create a figure
-  fig = plt.figure(figsize=(5*num_times, 5*num_params))
+  fig = plt.figure(figsize=(5*num_params, 5*num_times))
 
   # Get the meshgrid in the (x, y) coordinate
   sidelen = 100

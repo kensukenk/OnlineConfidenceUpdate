@@ -789,15 +789,15 @@ class ReachabilityDubins4DForwardParam2SetScaled(Dataset):
         self.alpha = {}
         self.beta = {}
 
-        self.alpha['x'] = 4.0
-        self.alpha['y'] = 4.0
+        self.alpha['x'] = 3.0
+        self.alpha['y'] = 3.0
         self.alpha['th'] = 1.2*math.pi
         self.alpha['v'] = 7.5
         self.alpha['a'] = 10.0
-        self.alpha['o'] = 3.*math.pi
+        self.alpha['o'] = 3.0
         self.alpha['time'] = 3.0
 
-        self.beta['x'] = 0.0
+        self.beta['x'] = 2.0
         self.beta['y'] = 0.0
         self.beta['th'] = 0.0
         self.beta['v'] = 7.5
@@ -844,7 +844,7 @@ class ReachabilityDubins4DForwardParam2SetScaled(Dataset):
         state_coords_unnormalized_thv = state_coords_unnormalized[..., 2:4] * 1.0
         state_coords_unnormalized_thv[..., 1] = state_coords_unnormalized_thv[..., 1] - state_coords_unnormalized[..., 4]
 
-        boundary_values2 = torch.norm(state_coords_unnormalized_thv, dim=-1, keepdim=True) - self.collisionR * 2
+        boundary_values2 = torch.norm(state_coords_unnormalized_thv, dim=-1, keepdim=True) - 0.5
 
         #boundary_values1 = torch.norm(state_coords_unnormalized[..., 0:2] - state_coords_unnormalized[..., 4:6], dim=-1, keepdim=True) - self.collisionR
         # theta and vel from start
