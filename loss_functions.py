@@ -469,7 +469,7 @@ def initialize_hji_dubins4d_forward_param(dataset, minWith, diffModel_mode):
             ham = compute_overall_ham(x, dudx) 
 
             # Scale the time derivative appropriately
-            ham = ham * alpha['time']
+            #ham = ham * alpha['time']
 
             # If we are computing BRT then take min with zero
             if minWith == 'zero':
