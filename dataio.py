@@ -791,8 +791,8 @@ class ReachabilityDubins4DForwardParam2SetScaled(Dataset):
 
         self.alpha['x'] = 3.0
         self.alpha['y'] = 3.0
-        self.alpha['th'] = 1.2*math.pi
-        self.alpha['v'] = 7.5
+        self.alpha['th'] = 1.1*math.pi
+        self.alpha['v'] = 5.5
         self.alpha['a'] = 10.0
         self.alpha['o'] = 3.0
         self.alpha['time'] = 3.0
@@ -800,14 +800,14 @@ class ReachabilityDubins4DForwardParam2SetScaled(Dataset):
         self.beta['x'] = 2.0
         self.beta['y'] = 0.0
         self.beta['th'] = 0.0
-        self.beta['v'] = 7.5
+        self.beta['v'] = 5.5
         self.beta['a'] = 0.0
         self.beta['o'] = 0.0
 
         # Normalization for the value function
         self.norm_to = 0.02
-        self.mean = 7.25
-        self.var = 7.5
+        self.mean = 5.3
+        self.var = 5.6
 
         # Collision radius
         self.collisionR = collisionR
