@@ -143,9 +143,6 @@ def val_fn(model, ckpt_dir, epoch):
 
 
       # Initial position coords
-      #startX_coords = (torch.ones(mgrid_coords.shape[0], 1) * startX[j] - beta['x'])/alpha['x']
-      #startY_coords = (torch.ones(mgrid_coords.shape[0], 1) * startY[j] - beta['y'])/alpha['y']
-      #startTheta_coords = (torch.ones(mgrid_coords.shape[0], 1) * start_th - beta['th'])/alpha['th']
       startV_coords = (torch.ones(mgrid_coords.shape[0], 1) * start_v - beta['v'])/alpha['v']
       coords = torch.cat((coords, startV_coords), dim=1) 
 
