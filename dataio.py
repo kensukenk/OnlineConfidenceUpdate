@@ -795,16 +795,16 @@ class ReachabilityDubins4DForwardParam2SetScaled(Dataset):
         self.beta = {}
 
         if bound_mode == 'v2':
-            self.alpha['x'] = 10.0
-            self.alpha['y'] = 10.0
+            self.alpha['x'] = 15.0
+            self.alpha['y'] = 15.0
             self.alpha['th'] = 1.2*math.pi
             self.alpha['v'] = 7.5
             self.alpha['a'] = 10.0
             self.alpha['o'] = 2.0
             self.alpha['time'] = alphaT
 
-            self.beta['x'] = 0.0
-            self.beta['y'] = 0.0
+            self.beta['x'] = 10.0
+            self.beta['y'] = 10.0
             self.beta['th'] = 0.0
             self.beta['v'] = 7.5
             self.beta['a'] = 0.0
@@ -824,8 +824,8 @@ class ReachabilityDubins4DForwardParam2SetScaled(Dataset):
             elif self.lx_type == 'square':
                 # Normalization for the value function (Range : [-1, 15])
                 self.norm_to = 0.02
-                self.mean = 7.0
-                self.var = 8.0
+                self.mean = 7.4
+                self.var = 8.3
             else:
                 raise NotImplementedError
         else:
@@ -881,10 +881,13 @@ class ReachabilityDubins4DForwardParam2SetScaled(Dataset):
 
         if self.lx_type == 'square':
             # XY position
-            normalized_x_extent = (1.5*self.collisionR['xy'] - self.beta['x'])/ self.alpha['x']
-            normalized_y_extent = (1.5*self.collisionR['xy'] - self.beta['y'])/ self.alpha['y']
-            target_coords[..., 0] = normalized_x_extent * target_coords[:, 0]
-            target_coords[..., 1] = normalized_y_extent * target_coords[:, 1]
+            normalized_x_extent = (1.5*self.collisionR['xy'])/ self.alpha['x']
+            normalized_y_extent = (1.5*self.collisionR['xy'])/ self.alpha['y']
+            normalized_x_shift = -self.beta['x']/ self.alpha['x']
+            normalized_y_shift = -self.beta['y']/ self.alpha['y']
+            # sets the range from [-1, 1] to [-extent, +extent], then centers around origin
+            target_coords[..., 0] = normalized_x_extent * target_coords[:, 0] + normalized_x_shift
+            target_coords[..., 1] = normalized_y_extent * target_coords[:, 1] + normalized_y_shift
 
             # Theta position
             normalized_th_extent = (1.5*self.collisionR['th'] - self.beta['th'])/ self.alpha['th']
@@ -1010,9 +1013,9 @@ class ReachabilityDubins4DForwardParam2SetScaled(Dataset):
             boundary_values = self.compute_IC(coords_var[..., 1:])
             
             # Normalize the value function
-            # print('Min and max value before normalization are %0.4f and %0.4f' %(min(boundary_values), max(boundary_values)))
+            #print('Min and max value before normalization are %0.4f and %0.4f' %(min(boundary_values), max(boundary_values)))
             boundary_values = (boundary_values - self.mean)*self.norm_to/self.var
-            # print('Min and max value after normalization are %0.4f and %0.4f' %(min(boundary_values), max(boundary_values)))
+            #print('Min and max value after normalization are %0.4f and %0.4f' %(min(boundary_values), max(boundary_values)))
 
             # Compute the gradients of the value function
             lx_grads = diff_operators.gradient(boundary_values, coords_var)[..., 1:5]
