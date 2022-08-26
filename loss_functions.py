@@ -425,7 +425,7 @@ def initialize_hji_human_forward_param(dataset, minWith, diffModel_mode):
 
     return hji_human_forward_param
 
-def initialize_hji_Car4D(dataset, minWith, time_norm_mode):
+def initialize_hji_dubins4d_forward_param(dataset, minWith, diffModel_mode):
     # Normalization parameters
     alpha = dataset.alpha
     beta = dataset.beta
@@ -437,9 +437,8 @@ def initialize_hji_Car4D(dataset, minWith, time_norm_mode):
     periodic_boundary = dataset.periodic_boundary
     num_boundary_pts = dataset.N_boundary_pts
     diffModel = dataset.diffModel
-    exact_BC = dataset.exact_BC
     
-    def hji_Car4D(model_output, gt):
+    def hji_dubins4d_forward_param(model_output, gt):
         source_boundary_values = gt['source_boundary_values']
         x = model_output['model_in']  # (meta_batch_size, num_points, 4)
         y = model_output['model_out']  # (meta_batch_size, num_points, 1)
@@ -454,16 +453,15 @@ def initialize_hji_Car4D(dataset, minWith, time_norm_mode):
             dudt = du[..., 0, 0]
             dudx = du[..., 0, 1:5]
 
-            # Adjust the spatial and time gradients of the value function if needed
+            # Adjust the spatial gradient of lx if needed
             if diffModel:
                 dudx = dudx + gt['lx_grads']
-                diff_from_lx = y
-            elif exact_BC:
-                # import ipdb; ipdb.set_trace()
-                time = x[..., 0:1] * alpha['time']
-                dudt = time[..., 0] * dudt + y[..., 0]
-                dudx = time * dudx + gt['lx_grads']
-                diff_from_lx = time * y 
+                if diffModel_mode == 'mode1':
+                    diff_from_lx = y - normalized_zero_value
+                elif diffModel_mode == 'mode2':
+                    diff_from_lx = y
+                else:
+                    raise NotImplementedError   
             else:
                 diff_from_lx = y - source_boundary_values
 
@@ -471,11 +469,7 @@ def initialize_hji_Car4D(dataset, minWith, time_norm_mode):
             ham = compute_overall_ham(x, dudx) 
 
             # Scale the time derivative appropriately
-            if time_norm_mode == 'scale_PDE':
-                dudt = dudt / alpha['time']
-                diff_from_lx = diff_from_lx / alpha['time']
-            elif time_norm_mode == 'scale_ham':
-                ham = ham * alpha['time']
+            #ham = ham * alpha['time']
 
             # If we are computing BRT then take min with zero
             if minWith == 'zero':
@@ -488,12 +482,11 @@ def initialize_hji_Car4D(dataset, minWith, time_norm_mode):
         # Boundary loss
         if diffModel:
             dirichlet = y[dirichlet_mask]
-        elif exact_BC:
-            dirichlet = y[dirichlet_mask]
         else:
             dirichlet = y[dirichlet_mask] - source_boundary_values[dirichlet_mask]
 
         if periodic_boundary:
+            # import ipdb; ipdb.set_trace()
             periodic_boundary_loss = y[:, :num_boundary_pts] - y[:, num_boundary_pts:2*num_boundary_pts]
             return {'dirichlet': torch.abs(dirichlet).sum() * batch_size / 75e2,
                     'diff_constraint_hom': torch.abs(diff_constraint_hom).sum(),
@@ -502,7 +495,7 @@ def initialize_hji_Car4D(dataset, minWith, time_norm_mode):
             return {'dirichlet': torch.abs(dirichlet).sum() * batch_size / 75e2,
                     'diff_constraint_hom': torch.abs(diff_constraint_hom).sum()}
 
-    return hji_Car4D
+    return hji_dubins4d_forward_param
 
 def initialize_hji_dubins4d_reach_avoid_param(dataset, minWith, diffModel_mode):
     # Normalization parameters
