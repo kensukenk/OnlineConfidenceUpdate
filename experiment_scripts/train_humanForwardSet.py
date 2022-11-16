@@ -54,6 +54,7 @@ p.add_argument('--minWith', type=str, default='none', required=False, choices=['
 p.add_argument('--clip_grad', default=0.0, type=float, help='Clip gradient.')
 p.add_argument('--use_lbfgs', default=False, type=bool, help='use L-BFGS.')
 p.add_argument('--pretrain', action='store_true', default=False, required=False, help='Pretrain dirichlet conditions')
+p.add_argument('--adjust_relative_grads', action='store_true', default=False, required=False, help='Adjust relative gradients of the loss function.')
 
 p.add_argument('--seed', type=int, default=0, required=False, help='Seed for the simulation.')
 
@@ -61,7 +62,7 @@ p.add_argument('--checkpoint_path', default=None, help='Checkpoint to trained mo
 p.add_argument('--checkpoint_toload', type=int, default=0, help='Checkpoint from which to restart the training.')
 p.add_argument('--beta', type=float, default=0.1, help='fixed confidence interval')
 p.add_argument('--beta1', type=float, default=0.1, help='fixed confidence interval')
-p.add_argument('--beta2', type=float, default=10, help='fixed confidence interval')
+p.add_argument('--beta2', type=float, default=2, help='fixed confidence interval')
 opt = p.parse_args()
 
 # Set the source coordinates for the target set and the obstacle sets
@@ -148,4 +149,5 @@ def val_fn(model, ckpt_dir, epoch):
 training.train(model=model, train_dataloader=dataloader, epochs=opt.num_epochs, lr=opt.lr,
                steps_til_summary=opt.steps_til_summary, epochs_til_checkpoint=opt.epochs_til_ckpt,
                model_dir=root_path, loss_fn=loss_fn, clip_grad=opt.clip_grad,
-               use_lbfgs=opt.use_lbfgs, validation_fn=val_fn, start_epoch=opt.checkpoint_toload)
+               use_lbfgs=opt.use_lbfgs, validation_fn=val_fn, start_epoch=opt.checkpoint_toload,
+               adjust_relative_grads=opt.adjust_relative_grads)

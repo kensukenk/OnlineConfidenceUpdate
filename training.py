@@ -127,6 +127,43 @@ def train(model, train_dataloader, epochs, lr, steps_til_summary, epochs_til_che
                         losses['dirichlet'] = new_weight1 * losses['dirichlet']
                         writer.add_scalar('weight_scaling1', new_weight1, total_steps)
 
+                        # # Gradients with respect to the periodicity loss
+                        # if 'periodicity' in losses.keys():
+                        #     optim.zero_grad()
+                        #     losses['periodicity'].backward(retain_graph=True)
+                        #     grads_periodicity = []
+                        #     for key, param in params.items():
+                        #         grads_periodicity.append(param.grad.view(-1))
+                        #     grads_periodicity = torch.cat(grads_periodicity)
+
+                        #     # Set the new weight according to the paper
+                        #     num = torch.mean(torch.abs(grads_PDE))
+                        #     den = torch.mean(torch.abs(grads_periodicity))
+                        #     new_weight2 = 0.9*new_weight2 + 0.1*num/den
+                        #     losses['periodicity'] = new_weight2 * losses['periodicity']
+                        #     writer.add_scalar('weight_scaling2', new_weight2, total_steps)
+
+                        # # Plot the gradients
+                        # import seaborn as sns
+                        # import matplotlib.pyplot as plt
+                        # fig = plt.figure(figsize=(5, 5))
+                        # ax = fig.add_subplot(1, 1, 1)
+                        # ax.set_yscale('symlog')
+                        # sns.distplot(grads_PDE.cpu().numpy(), hist=False, kde_kws={"shade": False}, norm_hist=True)
+                        # sns.distplot(grads_dirichlet.cpu().numpy(), hist=False, kde_kws={"shade": False}, norm_hist=True)
+                        # fig.savefig('gradient_visualization.png')
+
+                        # fig = plt.figure(figsize=(5, 5))
+                        # ax = fig.add_subplot(1, 1, 1)
+                        # ax.set_yscale('symlog')
+                        # grads_dirichlet_normalized = grads_dirichlet * torch.mean(torch.abs(grads_PDE))/torch.mean(torch.abs(grads_dirichlet))
+                        # sns.distplot(grads_PDE.cpu().numpy(), hist=False, kde_kws={"shade": False}, norm_hist=True)
+                        # sns.distplot(grads_dirichlet_normalized.cpu().numpy(), hist=False, kde_kws={"shade": False}, norm_hist=True)
+                        # ax.set_xlim([-1000.0, 1000.0])
+                        # fig.savefig('gradient_visualization_normalized.png')
+
+                # import ipdb; ipdb.set_trace()
+
                 train_loss = 0.
                 for loss_name, loss in losses.items():
                     single_loss = loss.mean()
