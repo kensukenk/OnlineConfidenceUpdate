@@ -51,7 +51,7 @@ If you find our work useful in your research, please cite:
 @inproceedings{bansal2020deepreach,
     author = {Bansal, Somil
               and Tomlin, Claire},
-    title = {{DeepReach}: A Deep Learning Approach to High-Dimensional Reachability},
+    title = { {DeepReach}: A Deep Learning Approach to High-Dimensional Reachability},
     booktitle = {IEEE International Conference on Robotics and Automation (ICRA)},
     year={2021}
 }
