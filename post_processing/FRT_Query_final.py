@@ -317,7 +317,7 @@ def anglehelper(theta):
     return theta
 
 
-def main(mode):
+def main(mode, beta_low, gamma):
   nuScenes_data_path = './v1.0' # Data Path to nuScenes data set 
   nuScenes_devkit_path = './devkit/python-sdk/'
   sys.path.append(nuScenes_devkit_path)
@@ -325,15 +325,17 @@ def main(mode):
   # NuScenes parameters relevant to the scene
   if mode == 'uturn':
     with open('../Trajectron-plus-plus/experiments/processed/nuScenes_uturntest_full.pkl', 'rb') as f:
+      print('U TURN')
       eval_env = dill.load(f, encoding='latin1')
       eval_scenes = eval_env.scenes
       hum_idx = 1
       rob_idx = 0
       scene_idx = 1
-      frames = torch.arange(3,35, 1)
+      frames = torch.arange(4,35, 1)
 
   elif mode == 'stop':
     with open('../Trajectron-plus-plus/experiments/processed/nuScenes_ICRAtest_full.pkl', 'rb') as f:
+      print('STOP SIGN')
       eval_env = dill.load(f, encoding='latin1')
       eval_scenes = eval_env.scenes
       hum_idx = 1
@@ -345,10 +347,14 @@ def main(mode):
     raise Exception("Only U-turn or Stop sign scenarios are allowed.")
 
   # probability mass bounds
-  prob_min = 0.465
-  prob_max = 0.535
+  prob_min = 0.5 - gamma/2
+  prob_max = 0.5 + gamma/2
+  print('probmin')
+  print(prob_min)
   # lower bound of beta
-  beta = 0.03
+  #beta = beta_low
+  #print('Lower bound of beta')
+  #print(beta_low)
 
 
   ph = 6 # prediction horizon is 6 timesteps of 0.5 seconds
@@ -404,6 +410,7 @@ def main(mode):
 
 
   beliefs = [0.5] # Initial prior
+  beta_interp = [(beta_low + 1)/2]
   eps = 1e-8 # amount to sample from initial prior (see: Confidence-aware motion prediction for real-time collision avoidance, Fridovich-Keil)
 
   # storing actions, beliefs, and prediction mean and covariances
@@ -459,16 +466,24 @@ def main(mode):
 
 
           var = multivariate_normal(mean=pred_agent_act[0], cov=pred_agent_sig[0])
-          prob1 = var.pdf([steering, accel])
-          var2 = multivariate_normal(mean=pred_agent_act[0], cov=(1/beta)*pred_agent_sig[0])
-          prob2 = var2.pdf([steering, accel])
+          prob1 = var.pdf([steering, accel]) # probability of beta high
+          var2 = multivariate_normal(mean=pred_agent_act[0], cov=(1/beta_low)*pred_agent_sig[0])
+          prob2 = var2.pdf([steering, accel]) # probability of beta low
           
           prior = (1-eps)*beliefs[-1] + eps*beliefs[0]
+          
+          #              b_(beta_high)*f() / sum( f() * b_(beta))          
           beliefs.append(prior*prob1 / (prior*prob1 + (1 - prior)*prob2))
         
           newMu = pred_agent_act
           
-          newCovBel = (beliefs[-1] + (1/beta)*(1-beliefs[-1])) * pred_agent_sig
+          beta_interp.append(beliefs[-1] + beta_low*(1-beliefs[-1]))
+          newCovBel = (1/beta_interp[-1])*pred_agent_sig
+          #print('beta_interp')
+          #print(beta_interp)
+          #print(1/beta_interp)
+          
+          #newCovBel = (beliefs[-1] + (1/beta_low)*(1-beliefs[-1])) * pred_agent_sig
           newCov = pred_agent_sig
           
           mus.append(newMu)
@@ -504,7 +519,10 @@ def main(mode):
   oMin2 = []
   aMin2Bel = []
   oMin2Bel = []
-
+  print('mode')
+  print(mode)
+  print('gamma')
+  print(gamma)
   # storing least squares approximation of truncated predicted controls
   for t in range(len(frames)):
       newMu = mus[t]
@@ -592,6 +610,10 @@ def main(mode):
     egoThet = robThet[0]
     egoVel = 21
 
+  print('Beta Interp')
+  print(beta_interp)
+  print('Mode')
+  print(mode)
   # check predictions and FRT
   for frame in range(len(frames)):
     # start state that relative position measured from
@@ -692,6 +714,22 @@ def main(mode):
     egoYOld = None
     egoThetOld = None
 
+    #visGraph(mode, '_bel'+str(frame), humStartVel, amin1Bel, amax1Bel, omin1Bel, omax1Bel, amin2Bel, amax2Bel, omin2Bel, omax2Bel)
+    #visGraph(mode, '_noBel'+str(frame), humStartVel, amin1, amax1, omin1, omax1, amin2, amax2, omin2, omax2)
+    
+    #if frame == 9:
+    #  print('time')
+    #  print(frame*0.5)
+    #  print('gamma')
+    #  print(gamma)
+    #  aRange1 = amax1Bel - amin1Bel
+    #  aRange2 = amax2Bel - amin2Bel
+    #  oRange1 = omax1Bel - omin1Bel
+    #  oRange2 = omax2Bel - omin2Bel
+    #  print('aranges oranges')
+    #  print(aRange1, aRange2)
+    #  print(oRange1, oRange2)
+    #  visGraph(mode, '_bel_' + str(gamma), humStartVel, amin1Bel, amax1Bel, omin1Bel, omax1Bel, amin2Bel, amax2Bel, omin2Bel, omax2Bel)
     for t in range(ph+1):   
         egoXOld = egoX 
         egoYOld = egoY
@@ -708,6 +746,7 @@ def main(mode):
         egoYRange = np.linspace(egoYOld, egoY, 15)
         egoThetRange = np.linspace(egoThetOld, egoThet, 15)
         
+
         for i in range(len(egoXRange)):
           relX, relY, _ = relativeCoords(humStartX, humStartY, humStartThet, egoXRange[i], egoYRange[i], egoThetRange[i])
           #print(relX, relY)
@@ -718,38 +757,64 @@ def main(mode):
             collisionBel = collisionCheck(querypoint_bel, frame, t, egoStartX, egoStartY, egoThet, egoVel, humX, humY, humThet, stopX, stopY, rob_xTrajStop, rob_yTrajStop, hum_xTrajStop, hum_yTrajStop, hum_zTrajStop)
             
             if collisionBel:
-              print("time of detected collision: ", t)
-              visGraph(mode, '_bel', humStartVel, amin1Bel, amax1Bel, omin1Bel, omax1Bel, amin2Bel, amax2Bel, omin2Bel, omax2Bel)
-              visGraph(mode, '_noBel', humStartVel, amin1, amax1, omin1, omax1, amin2, amax2, omin2, omax2)
+              aRange1 = amax1Bel - amin1Bel
+              aRange2 = amax2Bel - amin2Bel
+              oRange1 = omax1Bel - omin1Bel
+              oRange2 = omax2Bel - omin2Bel
+              #print('aranges')
+              #print(aRange1, aRange2)
+              #print('oranges')
+              #print(oRange1, oRange2)
+              #print('^^ Belief')
+              #print("time of detected collision: ", frame*0.5 ,t)
+              #print('------------------------------------------------')
+              #visGraph(mode, '_bel', humStartVel, amin1Bel, amax1Bel, omin1Bel, omax1Bel, amin2Bel, amax2Bel, omin2Bel, omax2Bel)
+              #visGraph(mode, '_noBel', humStartVel, amin1, amax1, omin1, omax1, amin2, amax2, omin2, omax2)
       
               #print('no bel controls')
               #print(humStartVel, amin1, amax1, omin1, omax1, amin2, amax2, omin2, omax2)
               #print('bel controls')
               #print(humStartVel, amin1Bel, amax1Bel, omin1Bel, omax1Bel, amin2Bel, amax2Bel, omin2Bel, omax2Bel)
-              print('human state')
-              print(humStartX)
-              print(humStartY)
-              print(humStartThet)
-              print('rob traj')
-              print(rob_xTraj)
-              print(rob_yTraj)
+              #print('human state')
+              #print(humStartX)
+              #print(humStartY)
+              #print(humStartThet)
+              #print('rob traj')
+              #print(rob_xTraj)
+              #print(rob_yTraj)
 
           if collision == False:
-            collision = collisionCheck(querypoint, frame, t, egoStartX, egoStartY, egoThet, egoVel, humX, humY, humThet, stopX, stopY, rob_xTrajStop, rob_yTrajStop, hum_xTrajStop, hum_yTrajStop, hum_zTrajStop)
+            collision = collisionCheck(querypoint, frame, t, egoStartX, egoStartY, egoThet, egoVel, humX, humY, humThet, stopX, stopY, rob_xTrajStop, rob_yTrajStop, hum_xTrajStop, hum_yTrajStop, hum_zTrajStop)              
             if collision:
-              print("time of detected collision: ", t)
-              visGraph(mode, '_noBel2', humStartVel, amin1, amax1, omin1, omax1, amin2, amax2, omin2, omax2)
+
+              aRange1 = amax1 - amin1
+              aRange2 = amax2 - amin2
+              oRange1 = omax1 - omin1
+              oRange2 = omax2 - omin2
+              #print('aranges')
+              #print(aRange1, aRange2)
+              #print('oranges')
+              #print(oRange1, oRange2)
+          
+              #print('^^ No Belief')
+              #print("time of detected collision: ", frame*0.5,  t)
+              #print('------------------------------------------------')
+
+              #visGraph(mode, '_noBel2', humStartVel, amin1, amax1, omin1, omax1, amin2, amax2, omin2, omax2)
               #print(humStartVel, amin1, amax1, omin1, omax1, amin2, amax2, omin2, omax2)
-              print('human state')
-              print(humStartX)
-              print(humStartY)
-              print(humStartThet)
-              print('rob traj')
-              print(rob_xTraj)
-              print(rob_yTraj)
+              #print('human state')
+              #print(humStartX)
+              #print(humStartY)
+              #print(humStartThet)
+              #print( humX[frame-1])
+              #print( humY[frame-1])
+              #print( humThet[frame-1])
+              #print('rob traj')
+              #print(rob_xTraj)
+              #print(rob_yTraj)
 
         if collision and collisionBel:
-          return('Collision')
+          return('Collision detected')
   return('safe')
 
 
@@ -758,8 +823,11 @@ def collisionCheck(queryVal, frame, t, egoStartX, egoStartY, egoThet, egoVel, hu
     stopDist = np.sqrt((egoStartX-stopX)**2 + (egoStartY-stopY)**2)
     if stopX > egoStartX:
       stopDist = -stopDist
-    closestDist(frame, stopDist, egoStartX, egoStartY, egoThet, egoVel, humX, humY, humThet, rob_xTrajStop, rob_yTrajStop, hum_xTrajStop, hum_yTrajStop, hum_zTrajStop)
-
+    #print('distance from stop')
+    #print(stopDist)
+    closest_Dist = closestDist(frame, stopDist, egoStartX, egoStartY, egoThet, egoVel, humX, humY, humThet, rob_xTrajStop, rob_yTrajStop, hum_xTrajStop, hum_yTrajStop, hum_zTrajStop)
+    #print('Closest Dist')
+    #print(closest_Dist)
     return True
   else:
     return False
@@ -808,24 +876,19 @@ def closestDist(frame, stopDist, egoX, egoY, robThet, egoVel, humXs, humYs, humT
       closestT = frame
     t += 0.5
     frame += 1
-  #print('dist traveled')
-  #print(dist)
-  #print('start frame')
-  #print(initFrame)
-#
-  #print('closest frame')
-  #print(closestT )
-  #print('closest dist')
-  #print(closest)
-#
-  print('Robot Stopping Trajectory')
-  print("Robot X: ", robTrajX)
-  print("Robot y: ", robTrajY)
-  print(np.ones_like(robTrajY)*robThet)
-  print('Human trajectory')
-  print("Hum X: ", humTrajX)
-  print("Hum y: ", humTrajY)
-  print("Hum heading: ", humTrajZ)
+
+  #print('Robot Stopping Trajectory')
+  #print("Robot X: ", robTrajX)
+  #print("Robot y: ", robTrajY)
+  #print(np.ones_like(robTrajY)*robThet)
+  #print('Human trajectory')
+  #print("Hum X: ", humTrajX)
+  #print("Hum y: ", humTrajY)
+  #print("Hum heading: ", humTrajZ)
+
+  
+
+
   return closest
 
 def stopAccelTime(egoVel, stopDist):
@@ -839,6 +902,13 @@ def stopAccelTime(egoVel, stopDist):
 
   return accel, stopTime
 if __name__ == "__main__":
-  print(main('uturn'))
-  print(main('stop'))
+
+  #beta_lows = [0.01, 0.03, 0.05, 0.07]
+  #beta_lows = [0.02, 0.04, 0.06, 0.08]
+  beta_lows = [0.03]
+  gammas = [0.025, 0.05, 0.075, 0.1, 0.125]
+  gammas = [0.075]
+  for gamma in gammas:
+    print(main('uturn', 0.03, 0.075)) # 4.5
+    #print(main('stop', 0.03, gamma)) #2.0
 

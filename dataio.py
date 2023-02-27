@@ -789,15 +789,17 @@ class ReachabilityDubins4DForwardParam2SetScaled(Dataset):
         self.alpha = {}
         self.beta = {}
 
-        self.alpha['x'] = 4.0
-        self.alpha['y'] = 4.0
+        self.alpha['x'] = 3.0
+        self.alpha['y'] = 3.0
         self.alpha['th'] = 1.1*math.pi
         self.alpha['v'] = 5.5
         self.alpha['a'] = 10.0
         self.alpha['o'] = 3.0
         self.alpha['time'] = 3.0
 
-        self.beta['x'] = 3.0
+        #self.beta['x'] = 0.5
+        self.beta['x'] = 1.0
+
         self.beta['y'] = 0.0
         self.beta['th'] = 0.0
         self.beta['v'] = 5.5
@@ -806,22 +808,23 @@ class ReachabilityDubins4DForwardParam2SetScaled(Dataset):
 
         # Normalization for the value function
         self.norm_to = 0.02
-        self.mean = 5.2
-        self.var = 5.6
+        self.mean = 5.4
+        self.var = 5.55
 
         # Collision radius
         self.collisionR = collisionR
-        self.vhR = 0.75
+        self.vhR = 0.5
 
         self.N_src_samples = num_src_samples
         self.N_boundary_pts = self.N_src_samples//2
-        self.N_inside_target_samples = num_src_samples
+        self.N_inside_target_samples = num_src_samples*5
 
 
         self.pretrain_counter = 0
         self.counter = counter_start
         self.pretrain_iters = pretrain_iters
         self.full_count = counter_end
+        self.zeroTensor = torch.tensor(0.).cuda()
 
     def __len__(self):
         return 1
@@ -926,6 +929,9 @@ class ReachabilityDubins4DForwardParam2SetScaled(Dataset):
         o_opt = torch.where(-dudx[...,2] > 0, omin, omax)
         a_opt = torch.where(-dudx[...,3] > 0, amin, amax)
         
+        amin = torch.where(torch.logical_and(x_u[...,4] < 0, amin<0), self.zeroTensor, amin )
+        amax = torch.where(torch.logical_and(x_u[...,4] < 0, amax<0), self.zeroTensor, amax )
+
         # Hamiltonian
         ham = -dudx[...,0]*x_u[...,4]*(torch.cos(x_u[..., 3])) - dudx[...,1]*x_u[...,4]*(torch.sin(x_u[...,3]))
         ham_o = -dudx[...,2]*o_opt
@@ -975,6 +981,7 @@ class ReachabilityDubins4DForwardParam2SetScaled(Dataset):
         if self.sample_inside_target:
             target_coords = coords[:self.N_inside_target_samples] * 1.0 
             target_coords[..., 1:6] = self.sample_inside_target_set()
+            #target_coords[-self.N_inside_target_samples//6:, 0] = start_time # Ensuring that some of the target set samples are the initial time
             coords = torch.cat((coords, target_coords), dim=0)
 
         # Compute the initial value function
