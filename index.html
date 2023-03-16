@@ -118,9 +118,9 @@
 
 <html>
 <head>
-	<title>This is my paper title</title>
+	<title>Online Update of Safety Assurances Using Confidence-Based Predictions</title>
 	<meta property="og:image" content="Path to my teaser.png"/> <!-- Facebook automatically scrapes this. Go to https://developers.facebook.com/tools/debug/ if you update and want to force Facebook to rescrape. -->
-	<meta property="og:title" content="Creative and Descriptive Paper Title." />
+	<meta property="og:title" content="Online Update of Safety Assurances Using Confidence-Based Predictions" />
 	<meta property="og:description" content="Paper description." />
 
 	<!-- Get from Google Analytics -->
@@ -138,23 +138,18 @@
 <body>
 	<br>
 	<center>
-		<span style="font-size:36px">Creative and Descriptive Paper Title</span>
+		<span style="font-size:36px">Online Update of Safety Assurances Using Confidence-Based Predictions</span>
 		<table align=center width=600px>
 			<table align=center width=600px>
 				<tr>
 					<td align=center width=100px>
 						<center>
-							<span style="font-size:24px"><a href="https://en.wikipedia.org/wiki/James_J._Gibson">First Author</a></span>
+							<span style="font-size:24px"><a href="">Kensuke Nakamura</a></span>
 						</center>
 					</td>
 					<td align=center width=100px>
 						<center>
-							<span style="font-size:24px"><a href="https://en.wikipedia.org/wiki/James_J._Gibson">Second Author</a></span>
-						</center>
-					</td>
-					<td align=center width=100px>
-						<center>
-							<span style="font-size:24px"><a href="https://en.wikipedia.org/wiki/James_J._Gibson">Third Author</a></span>
+							<span style="font-size:24px"><a href="https://smlbansal.github.io/">Somil Bansal</a></span>
 						</center>
 					</td>
 				</tr>
@@ -163,12 +158,12 @@
 				<tr>
 					<td align=center width=120px>
 						<center>
-							<span style="font-size:24px"><a href=''>[Paper]</a></span>
+							<span style="font-size:24px"><a href='https://arxiv.org/abs/2210.01199'>[Paper]</a></span>
 						</center>
 					</td>
 					<td align=center width=120px>
 						<center>
-							<span style="font-size:24px"><a href='https://github.com/richzhang/webpage-template'>[GitHub]</a></span><br>
+							<span style="font-size:24px"><a href='https://github.com/sia-lab-git/OnlineConfidenceUpdate'>[GitHub]</a></span><br>
 						</center>
 					</td>
 				</tr>
@@ -201,7 +196,7 @@
 		<center><h1>Abstract</h1></center>
 		<tr>
 			<td>
-				This is my abstract.
+				Robots such as autonomous vehicles and assistive manipulators are increasingly operating in dynamic environments and close physical proximity to people. In such scenarios, the robot can leverage a human motion predictor to predict their future states and plan safe and efficient trajectories. However, no model is ever perfect -- when the observed human behavior deviates from the model predictions, the robot might plan unsafe maneuvers. Recent works have explored maintaining a confidence parameter in the human model to overcome this challenge, wherein the predicted human actions are tempered online based on the likelihood of the observed human action under the prediction model. This has opened up a new research challenge, i.e., \textit{how to compute the future human states online as the confidence parameter changes?} In this work, we propose a Hamilton-Jacobi (HJ) reachability-based approach to overcome this challenge. Treating the confidence parameter as a virtual state in the system, we compute a parameter-conditioned forward reachable tube (FRT) that provides the future human states as a function of the confidence parameter. Online, as the confidence parameter changes, we can simply query the corresponding FRT, and use it to update the robot plan. Computing parameter-conditioned FRT corresponds to an (offline) high-dimensional reachability problem, which we solve by leveraging recent advances in data-driven reachability analysis. Overall, our framework enables online maintenance and updates of safety assurances in human-robot interaction scenarios, even when the human prediction model is incorrect. We demonstrate our approach in several safety-critical autonomous driving scenarios, involving a state-of-the-art deep learning-based prediction model.
 			</td>
 		</tr>
 	</table>
@@ -210,7 +205,7 @@
 	<hr>
 	<center><h1>Talk</h1></center>
 	<p align="center">
-		<iframe width="660" height="395" src="https://www.youtube.com/embed/dQw4w9WgXcQ" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen align="center"></iframe>
+		<iframe width="660" height="395" src="https://www.youtube.com/watch?v=cohzbclr0tU" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen align="center"></iframe>
 	</p>
 
 	<table align=center width=800px>
@@ -255,7 +250,7 @@
 	<table align=center width=800px>
 		<br>
 		<tr><center>
-			<span style="font-size:28px">&nbsp;<a href='https://github.com/richzhang/webpage-template'>[GitHub]</a>
+			<span style="font-size:28px">&nbsp;<a href='https://github.com/sia-lab-git/OnlineConfidenceUpdate'>[GitHub]</a>
 			</center>
 		</span>
 	</table>
@@ -265,10 +260,10 @@
 		<center><h1>Paper and Supplementary Material</h1></center>
 		<tr>
 			<td><a href=""><img class="layered-paper-big" style="height:175px" src="./resources/paper.png"/></a></td>
-			<td><span style="font-size:14pt">F. Author, S. Author, T. Author.<br>
-				<b>Creative and Descriptive Paper Title.</b><br>
-				In Conference, 20XX.<br>
-				(hosted on <a href="">ArXiv</a>)<br>
+			<td><span style="font-size:14pt"> K. Nakamura, S. Bansal.<br>
+				<b>Online Update of Safety Assurances Using Confidence-Based Predictions</b><br>
+				ICRA, 2023.<br>
+				(hosted on <a href="https://arxiv.org/abs/2210.01199">ArXiv</a>)<br>
 				<!-- (<a href="./resources/camera-ready.pdf">camera ready</a>)<br> -->
 				<span style="font-size:4pt"><a href=""><br></a>
 				</span>
