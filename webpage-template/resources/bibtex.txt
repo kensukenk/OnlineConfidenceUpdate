@@ -1,0 +1,6 @@
+@inproceedings{nakamura2023OnlineConfidence,
+  title={Online Update of Safety Assurances Using Confidence-Based Predictions},
+  author={Nakamura, Kensuke and Bansal, Somil},
+  booktitle={2023 International Conference on Robotics and Automation (ICRA)},
+  year={2023}
+}
