@@ -176,7 +176,7 @@
 			<tr>
 				<td width=260px>
 					<center>
-						<img class="round" style="width:500px" src="./resources/NoConfidenceGif.gif"/>
+						<img class="round" style="width:500px" src="./resources/CollisionComparison.gif"/>
 					</center>
 				</td>
 			</tr>
@@ -189,7 +189,7 @@
 		<center><h1>Abstract</h1></center>
 		<tr>
 			<td>
-				Robots such as autonomous vehicles and assistive manipulators are increasingly operating in dynamic environments and close physical proximity to people. In such scenarios, the robot can leverage a human motion predictor to predict their future states and plan safe and efficient trajectories. However, no model is ever perfect -- when the observed human behavior deviates from the model predictions, the robot might plan unsafe maneuvers. Recent works have explored maintaining a confidence parameter in the human model to overcome this challenge, wherein the predicted human actions are tempered online based on the likelihood of the observed human action under the prediction model. This has opened up a new research challenge, i.e., \textit{how to compute the future human states online as the confidence parameter changes?} In this work, we propose a Hamilton-Jacobi (HJ) reachability-based approach to overcome this challenge. Treating the confidence parameter as a virtual state in the system, we compute a parameter-conditioned forward reachable tube (FRT) that provides the future human states as a function of the confidence parameter. Online, as the confidence parameter changes, we can simply query the corresponding FRT, and use it to update the robot plan. Computing parameter-conditioned FRT corresponds to an (offline) high-dimensional reachability problem, which we solve by leveraging recent advances in data-driven reachability analysis. Overall, our framework enables online maintenance and updates of safety assurances in human-robot interaction scenarios, even when the human prediction model is incorrect. We demonstrate our approach in several safety-critical autonomous driving scenarios, involving a state-of-the-art deep learning-based prediction model.
+				Robots such as autonomous vehicles and assistive manipulators are increasingly operating in dynamic environments and close physical proximity to people. In such scenarios, the robot can leverage a human motion predictor to predict their future states and plan safe and efficient trajectories. However, no model is ever perfect -- when the observed human behavior deviates from the model predictions, the robot might plan unsafe maneuvers. Recent works have explored maintaining a confidence parameter in the human model to overcome this challenge, wherein the predicted human actions are tempered online based on the likelihood of the observed human action under the prediction model. This has opened up a new research challenge, i.e., <i>how to compute the future human states online as the confidence parameter changes?</i> In this work, we propose a Hamilton-Jacobi (HJ) reachability-based approach to overcome this challenge. Treating the confidence parameter as a virtual state in the system, we compute a parameter-conditioned forward reachable tube (FRT) that provides the future human states as a function of the confidence parameter. Online, as the confidence parameter changes, we can simply query the corresponding FRT, and use it to update the robot plan. Computing parameter-conditioned FRT corresponds to an (offline) high-dimensional reachability problem, which we solve by leveraging recent advances in data-driven reachability analysis. Overall, our framework enables online maintenance and updates of safety assurances in human-robot interaction scenarios, even when the human prediction model is incorrect. We demonstrate our approach in several safety-critical autonomous driving scenarios, involving a state-of-the-art deep learning-based prediction model.
 			</td>
 		</tr>
 	</table>
@@ -198,7 +198,7 @@
 	<hr>
 	<center><h1>Talk</h1></center>
 	<p align="center">
-		<iframe width="660" height="395" src="https://www.youtube.com/watch?v=cohzbclr0tU" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen align="center"></iframe>
+		<iframe width="660" height="395" src="https://www.youtube.com/embed/cohzbclr0tU" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen align="center"></iframe>
 	</p>
 
 	<table align=center width=800px>
@@ -235,7 +235,7 @@
 		<center>
 			<tr>
 				<td>
-					In this paper, we use a Bayesian update to track the confidence of a high-fidelity human motion predictor. Low confidence in the human motion predictor leads to the autonomous agent to safeguard against a dilated range of predicted human actions. By using these confidence-adjusted predictions as inputs to a parameter-conditioned forward reachable tube, the autonomous agent can avoid the most likely future occupancy states of the human agent.
+					In this paper, we use a Bayesian update to track the confidence of a high-fidelity human motion predictor. Observing low probability actions taken by the human causes the confidence in the model to drop. When confidence in the human motion predictor is low, the autonomous agent begins to safeguard against a wider range of actions than those predicted. By using these confidence-adjusted predictions as inputs to a parameter-conditioned forward reachable tube, the autonomous agent can avoid the most likely future occupancy states of the human agent which adapts in real-time based on differing semantic inputs to the predictor and model confidences.
 				</td>
 			</tr>
 		</center>
