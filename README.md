@@ -14,6 +14,8 @@ Setup Trajectron++. The instructions can be found [here](https://github.com/Stan
 
 You will need to add Trajectron++ to this directory. We use pretrained directory found in the eccv2020 branch `Trajectron-plus-plus/experiments/nuScenes/models/int_ee_me/model_registrar-12.pt`
 
+In addition, you will need to replace the trajectron.py and mgcvae.py files with the ones provided in this repo. The location to place these are 'Trajectron-plus-plus/trajectron/model/FILENAME'. These changes simply skip the final step in the Trajectron++ prediction to allow a direct output of the predicted control actions, rather than integrating them through the dynamics to get predicted occupancies.
+
 Furthermore, we provide two scenarios based on the original NuScenes dataset. These can be found in the two pkl files, and should be added into a directory like so: `Trajectron-plus-plus/experiments/nuScenes/processed/FILENAME.pkl`
 You will need to create the `processed` directory. This takes the original NuScenes scenarios and processes the data into something Trajectron++ can parse.
 
