@@ -154,15 +154,14 @@ def get_ctrls(mode, beta_low, gamma):
   covs = []
   covsBel = []
 
-  humVel =  np.zeros(len(frames+1))
-  humX =    np.zeros(len(frames+1))
-  humY =    np.zeros(len(frames+1))
-  humThet = np.zeros(len(frames+1))
-
-  robVel =  np.zeros(len(frames+1))
-  robX =    np.zeros(len(frames+1))
-  robY =    np.zeros(len(frames+1))
-  robThet = np.zeros(len(frames+1))
+  humVel =  np.zeros(len(frames))
+  humX =    np.zeros(len(frames))
+  humY =    np.zeros(len(frames))
+  humThet = np.zeros(len(frames))
+  robVel =  np.zeros(len(frames))
+  robX =    np.zeros(len(frames))
+  robY =    np.zeros(len(frames))
+  robThet = np.zeros(len(frames))
 
 
   beliefs = [0.5] # Initial prior
@@ -224,6 +223,8 @@ def get_ctrls(mode, beta_low, gamma):
               humThet[i] = humThet[0]
             else:
               humThet[i] = vel_ang
+          else:
+            humThet[i] = vel_ang
           
           vxRob = scene.nodes[rob_idx].data.data[tstep][2]
           vyRob = scene.nodes[rob_idx].data.data[tstep][3]
@@ -262,7 +263,8 @@ def get_ctrls(mode, beta_low, gamma):
           covs.append(newCov)
           covsBel.append(newCovBel)
 
-  
+  print('beta interp')
+  print(beta_interp)
   newMu = mus[-1]
   newCovBel = covsBel[-1]
   newCov = covs[-1]
@@ -327,8 +329,6 @@ def get_ctrls(mode, beta_low, gamma):
 def main(mode, beta_low, gamma):
   ph = 6   # prediction horizon
   ctrls, ctrls_bel, humStates, pred_states, robStates, frames, beta_interp = get_ctrls(mode, beta_low, gamma)
-  print(ctrls)
-  print(ctrls_bel)
   humX, humY, humThet, humVel = humStates
   robX, robY, robThet = robStates
   collision = [0]
@@ -348,6 +348,7 @@ def main(mode, beta_low, gamma):
     robStartY = robY[0] + 5.5*6.8
     egoThet = robThet[0]
     egoVel = 21
+
 
   # check predictions and FRT
   rob_xTrajPast = []
@@ -414,8 +415,7 @@ def main(mode, beta_low, gamma):
     humHistY = humY[:frame]
     humHist = [humHistX, humHistY]
     robPred = [rob_xTraj, rob_yTraj]
-    print('robstate')
-    print(robState)
+
 
     if mode == 'uturn':
       if collisionBel != [0] and len(collisionBel[0]) != 0:
@@ -454,7 +454,7 @@ def main(mode, beta_low, gamma):
         robTrajConfPast = [rob_xTrajConfPast, rob_yTrajConfPast]
         visGraph(mode, humStartVel, bounds, humHist, humPred, humState, [robState, robState], [robPred, robPred], [robTrajPast, robTrajConfPast],  frame,  beta_interp)
 
-      
+
     for t in range(ph+1):   
       egoXOld = egoX 
       egoYOld = egoY
@@ -469,20 +469,19 @@ def main(mode, beta_low, gamma):
         relX, relY, _ = relativeCoords(humStartX, humStartY, humStartThet, egoXRange[i], egoYRange[i], egoThetRange[i])
         querypoint = queryFRT(relX, relY, humStartVel, amin1, amax1, omin1, omax1, amin2, amax2, omin2, omax2)
         querypoint_bel = queryFRT(relX, relY, humStartVel, amin1Bel, amax1Bel, omin1Bel, omax1Bel, amin2Bel, amax2Bel, omin2Bel, omax2Bel)
-        
         if collisionBel == [0]:
-          collisionBel = collisionCheck(querypoint_bel, frame, t, egoStartX, egoStartY, egoThet, egoVel, humX, humY, humThet, stopX, stopY, rob_xTrajStop, rob_yTrajStop, hum_xTrajStop, hum_yTrajStop, hum_zTrajStop)
+          collisionBel = collisionCheck('Belief', querypoint_bel, frame, t, egoStartX, egoStartY, egoThet, egoVel, humX, humY, humThet, stopX, stopY, rob_xTrajStop, rob_yTrajStop, hum_xTrajStop, hum_yTrajStop, hum_zTrajStop)
       
         if collision == [0]:
-          collision = collisionCheck(querypoint, frame, t, egoStartX, egoStartY, egoThet, egoVel, humX, humY, humThet, stopX, stopY, rob_xTrajStop, rob_yTrajStop, hum_xTrajStop, hum_yTrajStop, hum_zTrajStop)              
+          collision = collisionCheck('No Belief', querypoint, frame, t, egoStartX, egoStartY, egoThet, egoVel, humX, humY, humThet, stopX, stopY, rob_xTrajStop, rob_yTrajStop, hum_xTrajStop, hum_yTrajStop, hum_zTrajStop)              
   
 
-
-def collisionCheck(queryVal, frame, t, egoStartX, egoStartY, egoThet, egoVel, humX, humY, humThet, stopX, stopY,rob_xTrajStop, rob_yTrajStop, hum_xTrajStop, hum_yTrajStop, hum_zTrajStop):
+def collisionCheck(belief_mode, queryVal, frame, t, egoStartX, egoStartY, egoThet, egoVel, humX, humY, humThet, stopX, stopY,rob_xTrajStop, rob_yTrajStop, hum_xTrajStop, hum_yTrajStop, hum_zTrajStop):
   if queryVal < 0:
     stopDist = np.sqrt((egoStartX-stopX)**2 + (egoStartY-stopY)**2)
     if stopX > egoStartX:
       stopDist = -stopDist
+    print(belief_mode +":")
     print('distance from stop')
     print(stopDist)
     closest_Dist, robTrajX, robTrajY = closestDist(frame, stopDist, egoStartX, egoStartY, egoThet, egoVel, humX, humY, humThet, rob_xTrajStop, rob_yTrajStop, hum_xTrajStop, hum_yTrajStop, hum_zTrajStop)
@@ -569,6 +568,6 @@ if __name__ == "__main__":
   gammas = [0.025, 0.05, 0.075, 0.1, 0.125]
   gammas = [0.075]
   for gamma in gammas:
-    print(main('uturn', 0.03, 0.075)) # 4.5
-    #print(main('stop', 0.03, 0.075)) #2.0
+    #print(main('uturn', 0.03, 0.075)) # 4.5
+    print(main('stop', 0.03, 0.075)) #2.0
 
